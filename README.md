@@ -1,5 +1,7 @@
 # HushWave
 
+<img src="docs/icon.png" width="120" align="right" alt="HushWave icon" />
+
 本地直连的多品牌小玩具控制器。Android / Kotlin + Jetpack Compose，不联网、不需要电脑。
 
 > 名字和图标来自一次很随意的深夜决定：一只捂着嘴的小家伙，戴着会发光的耳机。
