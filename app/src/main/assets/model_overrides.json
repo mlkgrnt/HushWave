@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "_comment": "已知型号的补充能力。buttplug 只建模了振动，国产/多功能型号的电击、吮吸、抽插、加热等在这里补齐。按 brand + 设备名匹配，命中后整体替换模块列表。",
+  "models": [
+    {
+      "brand": "Svakom",
+      "match": ["Viviana", "Vivian"],
+      "modules": [
+        { "t": "VIBRATE", "i": 0, "label": "振动", "max": 10 },
+        { "t": "ESTIM", "i": 0, "label": "电击", "max": 10 }
+      ]
+    }
+  ]
+}
