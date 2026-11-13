@@ -31,15 +31,15 @@ object Palette {
     val Surface: Color get() = if (dark) Color(0xFF0E1120) else Color(0xFFFFFFFF)
     val SurfaceHi: Color get() = if (dark) Color(0xFF151A2E) else Color(0xFFFFF0F6)
     val Line: Color get() = if (dark) Color(0xFF242B47) else Color(0xFFF0DCE7)
-    val CardSolid: Color get() = if (dark) Palette.CardSolid else Color(0xFFFFFFFF)
+    val CardSolid: Color get() = if (dark) Color(0xFF111527) else Color(0xFFFFFFFF)
     val NavBg: Color get() = if (dark) Color(0xF00A0C16) else Color(0xF2FFFFFF)
     val NavPill: Color get() = if (dark) Color(0xFF20263F) else Color(0xFFFFE3EF)
     val NavPillDim: Color get() = if (dark) Color(0xFF161B2E) else Color(0xFFFFF3F8)
 
     val BgTop: Color get() = if (dark) Color(0xFF0A0C18) else Color(0xFFFFFAFD)
-    val BgMid: Color get() = if (dark) Palette.DialogBg else Color(0xFFFFF2F8)
+    val BgMid: Color get() = if (dark) Color(0xFF07090F) else Color(0xFFFFF2F8)
     val BgBottom: Color get() = if (dark) Color(0xFF04050A) else Color(0xFFFFE9F3)
-    val DialogBg: Color get() = if (dark) Palette.DialogBg else Color(0xFFFFF7FB)
+    val DialogBg: Color get() = if (dark) Color(0xFF07090F) else Color(0xFFFFF7FB)
 
     val Violet: Color get() = if (dark) Color(0xFFA78BFA) else Color(0xFFF06FA0)
     val VioletDeep: Color get() = if (dark) Color(0xFF7C5CFF) else Color(0xFFE85C93)
