@@ -348,7 +348,7 @@ fun MoreScreen(vm: PulseViewModel) {
 
         item {
             GlassCard(Modifier.fillMaxWidth()) {
-                SectionHeader("关于", "HushWave 1.0")
+                SectionHeader("关于", "HushWave 1.0.1")
                 Text(
                     "支持 Galaku、Svakom、Lovense、We-Vibe、MagicMotion、Kiiroo、Satisfyer。",
                     style = MaterialTheme.typography.bodyMedium,
