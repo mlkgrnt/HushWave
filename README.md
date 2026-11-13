@@ -23,7 +23,7 @@
 
 | 品牌 | 协议 | 备注 |
 | --- | --- | --- |
-| Galaku 伽拉库 | `galaku` | 官方 App 反编译，支持吮吸/抽插/泵/电击/加热/灯效 |
+| Galaku | `galaku` | 官方 App 反编译，支持吮吸/抽插/泵/电击/加热/灯效 |
 | Svakom | `svakom-v1..v6` | 六个固件版本；Viviana 额外支持电击（EMS） |
 | Lovense | `lovense` | ASCII `Vibrate:N;` / `Rotate:N;` / `Air:Level:N;` |
 | We-Vibe | `wevibe-8bit` | 8 字节位掩码 |
