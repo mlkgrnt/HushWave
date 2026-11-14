@@ -105,7 +105,5 @@ Copyright (C) 2026 HushWave contributors.
 Galaku 指令格式来自对官方 App 的协议分析；其余依赖为 Apache-2.0，JUnit 4（EPL-1.0）仅用于本地测试。
 完整来源与声明见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
 
-> 许可自 2026-11-14 起变更。两个旧 release 的附件已备份并下架，随后以**相同的 tag、标题和版本号**
-> 重新以 GPL-3.0-or-later 发布；`1.0.1` 起的 APK 还在 `assets/GPL-3.0.txt` 内置了许可全文，
-> 「设置 → 关于 → 开源许可」可直接查看。
-> 注意：此前已被第三方下载的旧副本，其 BSD-3-Clause 授权永久有效，不因下架或重发而改变。
+> 所有公开 release 均以 GPL-3.0-or-later 提供。`1.0.1` 起的 APK 在 `assets/GPL-3.0.txt`
+> 内置了许可全文，「设置 → 关于 → 开源许可」可直接查看。
