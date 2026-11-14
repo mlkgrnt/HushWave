@@ -88,4 +88,17 @@ app/src/main/java/com/pulse/app/
 
 ## 许可
 
-BSD-3-Clause。品牌协议编码移植自 [buttplug](https://github.com/buttplugio/buttplug)，声明见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+**GPL-3.0-or-later**（SPDX，全文见 [LICENSE](LICENSE)）。
+
+可以自由使用、修改和分发，**也允许商业使用与收费**；唯一的硬约束是：分发衍生作品
+（包括改过的 APK）时必须同样以 GPL-3.0 授权，并提供完整对应源代码，不能闭源。
+
+Copyright (C) 2026 HushWave contributors.
+
+第三方部分：品牌协议编码移植自 [buttplug](https://github.com/buttplugio/buttplug)
+（BSD-3-Clause，与 GPL-3.0 兼容），其原始版权与免责声明必须随分发保留；
+Galaku 指令格式来自对官方 App 的协议分析；其余依赖为 Apache-2.0，JUnit 4（EPL-1.0）仅用于本地测试。
+完整来源与声明见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+
+> 许可自 2026-11-14 起变更，仅适用于仓库当前及之后的源码。
+> 此前发布的 `v1.0.0` / `v1.0.1` 二进制附件仍按发布时的 BSD-3-Clause 授权，不因本次变更被追溯。
