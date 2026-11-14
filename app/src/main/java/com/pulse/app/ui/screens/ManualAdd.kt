@@ -51,7 +51,6 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.core.content.ContextCompat
 import com.pulse.app.PulseViewModel
-import com.pulse.app.core.BleState
 import com.pulse.app.core.ProtocolSpec
 import com.pulse.app.core.ScanItem
 import com.pulse.app.core.ToyCatalog
@@ -67,7 +66,7 @@ import com.pulse.app.ui.VSpace
 fun ManualAddDialog(vm: PulseViewModel, onDismiss: () -> Unit) {
     val ctx = LocalContext.current
     val devices by vm.ble.devices.collectAsState()
-    val state by vm.ble.state.collectAsState()
+    val scanning by vm.ble.scanning.collectAsState()
     var selected by remember { mutableStateOf<ScanItem?>(null) }
     var pending by remember { mutableStateOf<(() -> Unit)?>(null) }
 
@@ -163,7 +162,7 @@ fun ManualAddDialog(vm: PulseViewModel, onDismiss: () -> Unit) {
                             .height(48.dp)
                             .clip(RoundedCornerShape(16.dp))
                             .background(
-                                if (state is BleState.Scanning) {
+                                if (scanning) {
                                     Brush.horizontalGradient(listOf(Palette.SurfaceHi, Palette.Surface))
                                 } else {
                                     Palette.ActionBrush
@@ -171,14 +170,14 @@ fun ManualAddDialog(vm: PulseViewModel, onDismiss: () -> Unit) {
                             )
                             .clickable {
                                 withPermission {
-                                    if (state is BleState.Scanning) vm.stopScan() else vm.startScan()
+                                    if (scanning) vm.stopScan() else vm.startScan()
                                 }
                             },
                         contentAlignment = Alignment.Center
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(
-                                if (state is BleState.Scanning) Icons.Rounded.BluetoothSearching
+                                if (scanning) Icons.Rounded.BluetoothSearching
                                 else Icons.Rounded.Bluetooth,
                                 null,
                                 tint = Color.White,
@@ -186,7 +185,7 @@ fun ManualAddDialog(vm: PulseViewModel, onDismiss: () -> Unit) {
                             )
                             Spacer(Modifier.width(8.dp))
                             Text(
-                                if (state is BleState.Scanning) "停止扫描" else "扫描设备",
+                                if (scanning) "停止扫描" else "扫描设备",
                                 style = MaterialTheme.typography.titleMedium,
                                 color = Color.White
                             )

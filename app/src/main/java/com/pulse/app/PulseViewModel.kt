@@ -137,6 +137,15 @@ class PulseViewModel(app: Application) : AndroidViewModel(app) {
                 }
             }
         }
+        // 扫描不再改动连接状态，失败信息走单独的通道，只弹提示、不把引擎切回演示模式
+        viewModelScope.launch {
+            ble.scanError.collect { msg ->
+                if (msg != null) {
+                    _toast.value = msg
+                    ble.clearScanError()
+                }
+            }
+        }
     }
 
     private fun observeMusic() {

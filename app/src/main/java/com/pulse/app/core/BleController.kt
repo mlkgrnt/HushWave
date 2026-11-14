@@ -40,7 +40,6 @@ data class ScanItem(
 
 sealed interface BleState {
     data object Idle : BleState
-    data object Scanning : BleState
     data class Connecting(val name: String, val address: String) : BleState
     data class Ready(
         val name: String,
@@ -189,8 +188,25 @@ class BleController(context: Context) {
     }
 
     // ------------------------------------------------------------------ scan
+    // 扫描与连接是两件独立的事：以前共用 _state，一点「重新扫描」就会把 Ready
+    // 覆盖成 Scanning，控制页立刻变「未连接」；扫描失败再变 Failed，引擎还会被切回演示模式。
+    private val _scanning = MutableStateFlow(false)
+    val scanning: StateFlow<Boolean> = _scanning.asStateFlow()
+
+    private val _scanError = MutableStateFlow<String?>(null)
+    val scanError: StateFlow<String?> = _scanError.asStateFlow()
+
+    fun clearScanError() {
+        _scanError.value = null
+    }
+
+    private var scanRetryUsed = false
+    private var scanRetryJob: Job? = null
+
     private val scanCallback = object : ScanCallback() {
         override fun onScanResult(callbackType: Int, result: ScanResult) {
+            scanRetryUsed = false
+            _scanError.value = null
             val record = result.scanRecord
             val name = result.device.name ?: record?.deviceName ?: return
             if (name.isBlank()) return
@@ -208,17 +224,60 @@ class BleController(context: Context) {
         }
 
         override fun onScanFailed(errorCode: Int) {
-            _state.value = BleState.Failed("扫描失败，错误码 $errorCode")
+            _scanning.value = false
+            addLog(TxLog.Dir.SYS, ByteArray(0), "扫描启动失败 errorCode=$errorCode")
+            // 1 = SCAN_FAILED_ALREADY_STARTED：系统里还留着上一次的扫描注册。
+            // 彻底停一次再重启，避免注册残留导致以后每次扫描都失败、只能杀进程重开。
+            if (errorCode == ScanCallback.SCAN_FAILED_ALREADY_STARTED && !scanRetryUsed) {
+                scanRetryUsed = true
+                scanRetryJob?.cancel()
+                scanRetryJob = scope.launch {
+                    delay(200)
+                    if (!isActive) return@launch
+                    stopScanInternal()
+                    startScanInternal()
+                    addLog(TxLog.Dir.SYS, ByteArray(0), "扫描已自动重启")
+                }
+                return
+            }
+            _scanError.value = when (errorCode) {
+                ScanCallback.SCAN_FAILED_ALREADY_STARTED -> "扫描没能重启，再点一次试试"
+                ScanCallback.SCAN_FAILED_APPLICATION_REGISTRATION_FAILED -> "蓝牙扫描没注册上，开关一次蓝牙再试"
+                ScanCallback.SCAN_FAILED_INTERNAL_ERROR -> "蓝牙出了点问题，开关一次蓝牙再试"
+                ScanCallback.SCAN_FAILED_FEATURE_UNSUPPORTED -> "这台手机不支持蓝牙扫描"
+                ScanCallback.SCAN_FAILED_OUT_OF_HARDWARE_RESOURCES -> "蓝牙太忙了，稍等几秒再试"
+                ScanCallback.SCAN_FAILED_SCANNING_TOO_FREQUENTLY -> "扫描太频繁，等几秒再试"
+                else -> "扫描没启动成功，再点一次试试"
+            }
         }
     }
 
     fun startScan() {
-        val a = adapter ?: run {
-            _state.value = BleState.Failed("此设备没有蓝牙适配器")
+        // 已经在扫描时，「重新扫描」只要清空列表重新收集结果即可，别去停掉再重新注册。
+        // 每次重新注册都会占用 Android 的扫描配额，短时间内多点几次就会被判为扫描过频。
+        // 连接时 connect() 会 stopScan() 把 _scanning 置 false，
+        // 所以「连接成功后点重新扫描」走的是下面的完整重启路径，不受影响。
+        if (_scanning.value) {
+            _devices.value = emptyList()
             return
         }
+        scanRetryJob?.cancel()
+        scanRetryJob = null
+        scanRetryUsed = false
+        startScanInternal()
+    }
+
+    private fun startScanInternal() {
+        val a = adapter ?: run {
+            _scanning.value = false
+            _scanError.value = "这台设备没有蓝牙"
+            return
+        }
+        // 关键：每次启动前无条件停一次，清掉系统侧可能残留的扫描注册。
+        // 否则重复 startScan 会回调 SCAN_FAILED_ALREADY_STARTED(1) 并且一直卡住。
+        stopScanInternal()
         if (!a.isEnabled) {
-            _state.value = BleState.Failed("蓝牙未开启")
+            _scanError.value = "蓝牙还没打开"
             return
         }
         _devices.value = emptyList()
@@ -226,19 +285,33 @@ class BleController(context: Context) {
             .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
             .build()
         try {
-            a.bluetoothLeScanner?.startScan(null, settings, scanCallback)
-            _state.value = BleState.Scanning
+            val scanner = a.bluetoothLeScanner
+            if (scanner == null) {
+                _scanError.value = "蓝牙还没准备好，稍后再试"
+                return
+            }
+            scanner.startScan(null, settings, scanCallback)
+            _scanning.value = true
+            _scanError.value = null
         } catch (e: Exception) {
-            _state.value = BleState.Failed(e.message ?: "无法开始扫描")
+            _scanning.value = false
+            _scanError.value = "扫描没启动成功，再点一次试试"
         }
     }
 
     fun stopScan() {
+        scanRetryJob?.cancel()
+        scanRetryJob = null
+        scanRetryUsed = false
+        stopScanInternal()
+    }
+
+    private fun stopScanInternal() {
         try {
             adapter?.bluetoothLeScanner?.stopScan(scanCallback)
         } catch (_: Exception) {
         }
-        if (_state.value is BleState.Scanning) _state.value = BleState.Idle
+        _scanning.value = false
     }
 
     // --------------------------------------------------------------- connect

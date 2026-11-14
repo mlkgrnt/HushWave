@@ -82,6 +82,7 @@ import com.pulse.app.ui.VSpace
 fun DevicesScreen(vm: PulseViewModel, onOpenControl: () -> Unit) {
     val ctx = LocalContext.current
     val state by vm.ble.state.collectAsState()
+    val scanning by vm.ble.scanning.collectAsState()
     val scanned by vm.visibleDevices.collectAsState()
     val devices = scanned.filter { it.match != null }
     val brand by vm.brandFilter.collectAsState()
@@ -225,7 +226,7 @@ fun DevicesScreen(vm: PulseViewModel, onOpenControl: () -> Unit) {
                         .height(52.dp)
                         .clip(RoundedCornerShape(18.dp))
                         .background(
-                            if (state is BleState.Scanning) {
+                            if (scanning) {
                                 Brush.horizontalGradient(listOf(Palette.SurfaceHi, Palette.Surface))
                             } else {
                                 Palette.ActionBrush
@@ -233,21 +234,21 @@ fun DevicesScreen(vm: PulseViewModel, onOpenControl: () -> Unit) {
                         )
                         .clickable {
                             withPermission {
-                                if (state is BleState.Scanning) vm.stopScan() else vm.startScan()
+                                if (scanning) vm.stopScan() else vm.startScan()
                             }
                         },
                     contentAlignment = Alignment.Center
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
-                            if (state is BleState.Scanning) Icons.Rounded.BluetoothSearching else Icons.Rounded.Bluetooth,
+                            if (scanning) Icons.Rounded.BluetoothSearching else Icons.Rounded.Bluetooth,
                             null,
                             tint = Color.White,
                             modifier = Modifier.size(18.dp)
                         )
                         Spacer(Modifier.width(8.dp))
                         Text(
-                            if (state is BleState.Scanning) "停止扫描" else "扫描设备",
+                            if (scanning) "停止扫描" else "扫描设备",
                             style = MaterialTheme.typography.titleMedium,
                             color = Color.White
                         )
