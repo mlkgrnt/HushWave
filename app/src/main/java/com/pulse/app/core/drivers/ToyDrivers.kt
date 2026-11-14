@@ -50,6 +50,10 @@ object Drivers {
             MagicMotionDriver(protocolId.removePrefix("magic-motion-").toIntOrNull() ?: 1)
         protocolId == "kiiroo-v21" -> KiirooV21Driver()
         protocolId == "satisfyer" -> SatisfyerDriver()
+        protocolId == "monsterpub" -> MonsterPubDriver()
+        protocolId == "tryfun" -> TryFunDriver()
+        protocolId == "tryfun-meta2" -> TryFunMeta2Driver()
+        protocolId == "tryfun-blackhole" -> TryFunBlackHoleDriver()
         else -> NoopDriver(protocolId)
     }
 }
@@ -307,5 +311,150 @@ class SatisfyerDriver : ToyDriver {
         }
         if (out.isEmpty()) out.add(0)
         return listOf(out.toByteArray())
+    }
+}
+
+// ------------------------------------------------------- 小怪兽 Sistalk MonsterPub
+/**
+ * 帧格式：直接把每个通道的 0..100 依次写进去。
+ * 小部分机型（Tracy's Dog）需要在前面补一个 0x03。
+ * 连接时还要做一次 XOR 握手，见 BleController.monsterPubHandshake()。
+ */
+class MonsterPubDriver : ToyDriver {
+    override val id = "monsterpub"
+
+    override fun packets(ctx: DriverContext): List<ByteArray> {
+        val specs = ctx.specsOf(ModuleType.VIBRATE).ifEmpty { ctx.specsOf(ModuleType.OSCILLATE) }
+        if (specs.isEmpty()) return emptyList()
+        val type = specs.first().type
+        val data = ByteArray(specs.size) { i -> ctx.raw(type, i).toByte() }
+        val tracys = ctx.deviceName?.startsWith("Tracy", ignoreCase = true) == true
+        return listOf(if (tracys) byteArrayOf(0x03) + data else data)
+    }
+}
+
+// ------------------------------------------------------------ 网易春风 TryFun 系列
+/**
+ * 校验和：sum 从 0xFF 开始减去除首字节外的所有字节，再加一个计数。
+ * 经典 TryFun 的计数从 0 开始，Meta2 / BlackHole 把包头号也算进去，从 1 开始。
+ */
+private fun tfChecksum(head: ByteArray, countStart: Int): ByteArray {
+    var sum = 0xFF
+    var count = countStart
+    for (i in 1 until head.size) {
+        sum -= head[i].toInt() and 0xFF
+        count++
+    }
+    val out = ByteArray(head.size + 1)
+    head.copyInto(out)
+    out[head.size] = ((sum + count) and 0xFF).toByte()
+    return out
+}
+
+/** 经典 TryFun：AA 02 07/08 + 速度；少数型号（TF-SPRAY）用 9 字节振动帧 */
+class TryFunDriver : ToyDriver {
+    override val id = "tryfun"
+
+    override fun packets(ctx: DriverContext): List<ByteArray> {
+        if (ctx.has(ModuleType.VIBRATE)) {
+            val s = ctx.raw(ModuleType.VIBRATE)
+            return listOf(
+                byteArrayOf(
+                    0x00, 0x02, 0x00, 0x05,
+                    if (s == 0) 1 else 2,
+                    (if (s == 0) 2 else s).toByte(),
+                    0x01,
+                    if (s == 0) 1 else 0,
+                    (0xFD - s.coerceAtLeast(1)).toByte()
+                )
+            )
+        }
+        val out = mutableListOf<ByteArray>()
+        if (ctx.has(ModuleType.OSCILLATE)) {
+            out += tfChecksum(
+                byteArrayOf(0xAA.toByte(), 0x02, 0x07, ctx.raw(ModuleType.OSCILLATE).toByte()),
+                0
+            )
+        }
+        if (ctx.has(ModuleType.ROTATE)) {
+            out += tfChecksum(
+                byteArrayOf(0xAA.toByte(), 0x02, 0x08, ctx.raw(ModuleType.ROTATE).toByte()),
+                0
+            )
+        }
+        return out
+    }
+}
+
+/** 网易春风 Meta 2：包头号 + 21 05 08/0B/0E + 速度 */
+class TryFunMeta2Driver : ToyDriver {
+    override val id = "tryfun-meta2"
+    private var packetId = 0
+
+    private fun nextId(): Byte {
+        val v = packetId
+        packetId = (packetId + 1) and 0xFF
+        return v.toByte()
+    }
+
+    override fun packets(ctx: DriverContext): List<ByteArray> {
+        val out = mutableListOf<ByteArray>()
+        if (ctx.has(ModuleType.OSCILLATE)) {
+            out += tfChecksum(
+                byteArrayOf(
+                    nextId(), 0x02, 0x00, 0x05, 0x21, 0x05, 0x0B,
+                    ctx.raw(ModuleType.OSCILLATE).toByte()
+                ),
+                1
+            )
+        }
+        if (ctx.has(ModuleType.VIBRATE)) {
+            out += tfChecksum(
+                byteArrayOf(
+                    nextId(), 0x02, 0x00, 0x05, 0x21, 0x05, 0x08,
+                    ctx.raw(ModuleType.VIBRATE).toByte()
+                ),
+                1
+            )
+        }
+        if (ctx.has(ModuleType.ROTATE)) {
+            var s = ctx.raw(ModuleType.ROTATE).toByte()
+            if (s >= 0) s++
+            s = (-s).toByte()
+            out += tfChecksum(
+                byteArrayOf(nextId(), 0x02, 0x00, 0x05, 0x21, 0x05, 0x0E, s),
+                1
+            )
+        }
+        return out
+    }
+}
+
+/** 网易春风 Black Hole Plus / Rock：包头号 + 03 0C/09 + 速度 */
+class TryFunBlackHoleDriver : ToyDriver {
+    override val id = "tryfun-blackhole"
+    private var packetId = 0
+
+    private fun nextId(): Byte {
+        val v = packetId
+        packetId = (packetId + 1) and 0xFF
+        return v.toByte()
+    }
+
+    override fun packets(ctx: DriverContext): List<ByteArray> {
+        val out = mutableListOf<ByteArray>()
+        if (ctx.has(ModuleType.OSCILLATE)) {
+            out += tfChecksum(
+                byteArrayOf(nextId(), 0x02, 0x00, 0x03, 0x0C, ctx.raw(ModuleType.OSCILLATE).toByte()),
+                1
+            )
+        }
+        if (ctx.has(ModuleType.VIBRATE)) {
+            out += tfChecksum(
+                byteArrayOf(nextId(), 0x02, 0x00, 0x03, 0x09, ctx.raw(ModuleType.VIBRATE).toByte()),
+                1
+            )
+        }
+        return out
     }
 }

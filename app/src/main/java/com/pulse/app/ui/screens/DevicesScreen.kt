@@ -509,6 +509,26 @@ private fun ScanRow(
             if (connected) {
                 Pill("已连接", Palette.Lime)
             } else {
+                Column(horizontalAlignment = Alignment.End) {
+                    Text(
+                        "${item.rssi}",
+                        style = MaterialTheme.typography.labelLarge.copy(
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 12.sp
+                        ),
+                        color = signalColor(item.rssi)
+                    )
+                    Text(
+                        "dBm",
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 8.5.sp,
+                            letterSpacing = 0.sp
+                        ),
+                        color = Palette.TextFaint
+                    )
+                }
+                Spacer(Modifier.width(10.dp))
                 Icon(
                     Icons.Rounded.ChevronRight,
                     null,
@@ -569,8 +589,14 @@ private fun MemoryRow(record: ToyRecord, onDelete: () -> Unit, onConnect: () -> 
     }
 }
 
-private fun shortModel(record: ToyRecord): String {
-    val name = record.modelName
+/** 信号越强越亮：-55 以上绿、-75 以上次色、再弱用警示色 */
+private fun signalColor(rssi: Int) = when {
+    rssi >= -60 -> Palette.Lime
+    rssi >= -78 -> Palette.Cyan
+    else -> Palette.TextFaint
+}
+
+private fun shortModel(record: ToyRecord): String {    val name = record.modelName
     val prefixes = listOf(record.brand, "Svakom", "Galaku", "Lovense", "WeVibe", "We-Vibe", "MagicMotion")
     val hit = prefixes.firstOrNull { name.startsWith("$it ", true) }
     return if (hit != null) name.substring(hit.length).trim() else name

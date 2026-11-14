@@ -55,6 +55,19 @@ sealed interface BleState {
 
 data class LinkInfo(val service: String, val tx: String, val mtu: Int)
 
+private const val MP_SERVICE = "00006000-0000-1000-8000-00805f9b34fb"
+private const val MP_TX = "00006001-0000-1000-8000-00805f9b34fb"
+private const val MP_TXMODE = "00006002-0000-1000-8000-00805f9b34fb"
+private const val MP_TXVIBRATE = "00006003-0000-1000-8000-00805f9b34fb"
+private const val MP_GENERIC0 = "0000600a-0000-1000-8000-00805f9b34fb"
+private const val MP_RX_SERVICE = "00008000-0000-1000-8000-00805f9b34fb"
+private const val MP_RX = "00008001-0000-1000-8000-00805f9b34fb"
+
+/** 握手用的 4 把 15 字节密钥，来自 buttplug 的 monsterpub.rs */
+private val MP_KEYS: List<ByteArray> = listOf("2IPO", "LSBB", "SIS6", "TALK").map { word ->
+    ByteArray(15) { i -> word[i % 4].code.toByte() }
+}
+
 /**
  * 通用 GATT 客户端：不同品牌只是 service / tx / rx 不同，连接流程一致。
  * 写操作串行化 + 可选的 keepalive 重发（Svakom / Satisfyer 这类固件需要）。
@@ -96,7 +109,15 @@ class BleController(context: Context) {
     private var notifyChar: BluetoothGattCharacteristic? = null
     private var connectedAddress: String? = null
     private var connectedName: String? = null
-    private var preferred: GattProfile? = null
+    private var preferred: List<GattProfile> = emptyList()
+    private var protocolId: String? = null
+
+    // 小怪兽 MonsterPub：需要先读一段随机串、XOR 后写回，才能下发控制帧
+    private var mpModeChar: BluetoothGattCharacteristic? = null
+    private var mpUsesTx = false
+    private var mpGeneric0 = false
+    private var handshakeDone = CompletableDeferred<Boolean>().apply { complete(true) }
+    private var readAck: CompletableDeferred<ByteArray?>? = null
     private var keepAliveJob: Job? = null
     private var lastPacket: ByteArray? = null
     private var keepAliveMs: Long = 0L
@@ -117,7 +138,14 @@ class BleController(context: Context) {
     }
 
     private suspend fun writeOnce(bytes: ByteArray): Boolean {
-        val ch = writeChar ?: return false
+        // 小怪兽的握手没做完之前，别把控制帧塞进去
+        if (protocolId == "monsterpub") withTimeoutOrNull(3000) { handshakeDone.await() }
+        val allZero = run {
+            val from = if (mpGeneric0 && bytes.isNotEmpty() && bytes[0] == 0x03.toByte()) 1 else 0
+            (from until bytes.size).all { bytes[it] == 0.toByte() }
+        }
+        val ch = (if (mpUsesTx && allZero && mpModeChar != null) mpModeChar else writeChar)
+            ?: return false
         val g = gatt ?: return false
         val needsAck = ch.properties and BluetoothGattCharacteristic.PROPERTY_WRITE != 0
         val writeType = if (needsAck) {
@@ -222,9 +250,14 @@ class BleController(context: Context) {
         _state.value = BleState.Connecting(item.name, item.address)
         connectedAddress = item.address
         connectedName = item.name
-        preferred = protocol?.profiles?.firstOrNull()
+        preferred = protocol?.profiles.orEmpty()
+        protocolId = protocol?.id
         keepAliveMs = protocol?.keepAliveMs ?: 0
         isGalaku = protocol?.id == "galaku"
+        mpModeChar = null
+        mpUsesTx = false
+        mpGeneric0 = false
+        handshakeDone = CompletableDeferred()
         val device: BluetoothDevice = try {
             a.getRemoteDevice(item.address)
         } catch (e: Exception) {
@@ -303,15 +336,14 @@ class BleController(context: Context) {
             var tx: BluetoothGattCharacteristic? = null
             var rx: BluetoothGattCharacteristic? = null
 
-            val pref = preferred
-            if (pref != null) {
+            for (pref in preferred) {
                 val s = all.firstOrNull { it.uuid.toString().equals(pref.service, true) }
-                val c = s?.getCharacteristic(UUID.fromString(pref.tx))
-                if (s != null && c != null) {
-                    service = s
-                    tx = c
-                    if (pref.rx != null) rx = s.getCharacteristic(UUID.fromString(pref.rx))
-                }
+                    ?: continue
+                val c = s.getCharacteristic(UUID.fromString(pref.tx)) ?: continue
+                service = s
+                tx = c
+                if (pref.rx != null) rx = s.getCharacteristic(UUID.fromString(pref.rx))
+                break
             }
             if (tx == null) {
                 outer@ for (s in all) {
@@ -327,6 +359,25 @@ class BleController(context: Context) {
                             }
                             break@outer
                         }
+                    }
+                }
+            }
+
+            // 小怪兽的写端点不止一个：优先 txvibrate，其次 tx（全停时改写到 txmode），
+            // 都没有时用 generic0（Tracy's Dog 这类机型）
+            if (protocolId == "monsterpub") {
+                val mp = all.firstOrNull {
+                    it.uuid.toString().equals(MP_SERVICE, ignoreCase = true)
+                }
+                if (mp != null) {
+                    val vib = mp.getCharacteristic(UUID.fromString(MP_TXVIBRATE))
+                    val main = mp.getCharacteristic(UUID.fromString(MP_TX))
+                    val gen = mp.getCharacteristic(UUID.fromString(MP_GENERIC0))
+                    mpModeChar = mp.getCharacteristic(UUID.fromString(MP_TXMODE))
+                    when {
+                        vib != null -> { service = mp; tx = vib }
+                        main != null -> { service = mp; tx = main; mpUsesTx = true }
+                        gen != null -> { service = mp; tx = gen; mpGeneric0 = true }
                     }
                 }
             }
@@ -357,6 +408,9 @@ class BleController(context: Context) {
             )
             addLog(TxLog.Dir.SYS, ByteArray(0), "已就绪 MTU=$mtu  tx=${tx.uuid}")
             startKeepAlive()
+            if (protocolId == "monsterpub") {
+                scope.launch { runMonsterPubHandshake(g) }
+            }
         }
 
         override fun onCharacteristicWrite(
@@ -366,6 +420,25 @@ class BleController(context: Context) {
         ) {
             writeAck?.complete(status == BluetoothGatt.GATT_SUCCESS)
             writeAck = null
+        }
+
+        @Deprecated("Deprecated in Java")
+        override fun onCharacteristicRead(
+            g: BluetoothGatt,
+            characteristic: BluetoothGattCharacteristic,
+            status: Int
+        ) {
+            @Suppress("DEPRECATION")
+            handleRead(if (status == BluetoothGatt.GATT_SUCCESS) characteristic.value else null)
+        }
+
+        override fun onCharacteristicRead(
+            g: BluetoothGatt,
+            characteristic: BluetoothGattCharacteristic,
+            value: ByteArray,
+            status: Int
+        ) {
+            handleRead(if (status == BluetoothGatt.GATT_SUCCESS) value else null)
         }
 
         @Deprecated("Deprecated in Java")
@@ -386,11 +459,91 @@ class BleController(context: Context) {
         }
     }
 
+    private fun handleRead(value: ByteArray?) {
+        readAck?.complete(value)
+    }
+
     private fun handleNotify(value: ByteArray?) {
         if (value == null || value.isEmpty()) return
         val plain = if (isGalaku && value.size >= 12) GalakuProtocol.decrypt(value) else value
         _lastNotify.value = if (isGalaku) GalakuProtocol.hex(value) else String(value)
         addLog(TxLog.Dir.RX, plain, "notify", value)
+    }
+
+    /**
+     * 小怪兽的认证：读 00008001 拿到 [keyIndex, 15 字节挑战]，
+     * 用对应密钥逐字节 XOR 后写回，之后设备才接受振动指令。
+     */
+    private suspend fun runMonsterPubHandshake(g: BluetoothGatt): Boolean = try {
+        val ch = g.getService(UUID.fromString(MP_RX_SERVICE))
+            ?.getCharacteristic(UUID.fromString(MP_RX))
+        val value = if (ch == null) null else readValue(g, ch, 1800)
+        val idx = value?.firstOrNull()?.toInt()?.and(0xFF)
+        val key = idx?.let { MP_KEYS.getOrNull(it) }
+        if (value != null && value.size >= 16 && key != null) {
+            val auth = ByteArray(15) { i ->
+                ((value[i + 1].toInt() xor key[i].toInt()) and 0xFF).toByte()
+            }
+            val ok = writeTo(g, ch!!, auth)
+            addLog(TxLog.Dir.SYS, ByteArray(0), "MonsterPub 握手 key=$idx ${if (ok) "成功" else "写入失败"}")
+            ok
+        } else {
+            addLog(TxLog.Dir.SYS, ByteArray(0), "MonsterPub 握手跳过（读不到挑战串）")
+            false
+        }
+    } catch (e: Exception) {
+        addLog(TxLog.Dir.SYS, ByteArray(0), "MonsterPub 握手异常：${e.message}")
+        false
+    } finally {
+        // 无论成败都放行，避免把控制卡死
+        if (!handshakeDone.isCompleted) handshakeDone.complete(true)
+    }
+
+    private suspend fun readValue(
+        g: BluetoothGatt,
+        ch: BluetoothGattCharacteristic,
+        timeoutMs: Long
+    ): ByteArray? {
+        val ack = CompletableDeferred<ByteArray?>()
+        readAck = ack
+        return try {
+            val started = try {
+                g.readCharacteristic(ch)
+            } catch (e: Exception) {
+                false
+            }
+            if (started) withTimeoutOrNull(timeoutMs) { ack.await() } else null
+        } finally {
+            readAck = null
+        }
+    }
+
+    /** 握手要写到另一个特征值，所以不走 writeOnce 的队列 */
+    private suspend fun writeTo(
+        g: BluetoothGatt,
+        ch: BluetoothGattCharacteristic,
+        bytes: ByteArray
+    ): Boolean {
+        val ack = CompletableDeferred<Boolean>()
+        writeAck = ack
+        val started = try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                g.writeCharacteristic(
+                    ch, bytes, BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
+                ) == BluetoothGatt.GATT_SUCCESS
+            } else {
+                @Suppress("DEPRECATION")
+                run {
+                    ch.writeType = BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
+                    ch.value = bytes
+                    g.writeCharacteristic(ch)
+                }
+            }
+        } catch (e: Exception) {
+            false
+        }
+        addLog(TxLog.Dir.TX, bytes, "auth")
+        return started && withTimeoutOrNull(700) { ack.await() } == true
     }
 
     private fun startKeepAlive() {
@@ -428,6 +581,11 @@ class BleController(context: Context) {
         gatt = null
         writeChar = null
         notifyChar = null
+        mpModeChar = null
+        mpUsesTx = false
+        mpGeneric0 = false
+        readAck = null
+        if (!handshakeDone.isCompleted) handshakeDone.complete(false)
         lastPacket = null
         _link.value = null
     }

@@ -237,6 +237,49 @@ Pulse 的波形引擎用 50ms 一帧、自定义曲线 + 双电机相位差，�
 
 - 每个振动马达输出 4 个相同字节，拼接成包；**500ms 重发保活**
 
+## 小怪兽 Sistalk MonsterPub（`monsterpub`）
+
+- 服务 `00006000-0000-1000-8000-00805f9b34fb`
+  - `00006003` txvibrate（优先）、`00006001` tx、`00006002` txmode、`0000600a` generic0
+- 服务 `00006010` → `00006014` rxblemodel（型号标识串）
+- 服务 `00008000-0000-1000-8000-00805f9b34fb` → `00008001` rx（认证）
+
+**连接握手（必须）**：读 `00008001` 得到 `[keyIndex, 15 字节挑战]`，
+按 keyIndex 选 4 把重复式密钥（`2IPO` / `LSBB` / `SIS6` / `TALK` 循环补齐 15 字节），
+逐字节 XOR 后把 15 字节写回 `00008001`。本项目在下发控制帧前会等握手完成。
+
+控制帧是各通道 0–100 的裸字节序列；用 `tx` 端点时全停改写到 `txmode`，
+Tracy's Dog 系列走 `generic0` 且首字节补 `0x03`。
+
+## 网易春风 TryFun（`tryfun` / `tryfun-meta2` / `tryfun-blackhole`）
+
+三条固件共用同一套校验和思路，但包头与命令字不同：
+
+```
+sum  = 0xFF
+sum -= 除首字节外所有字节   // 按 u8 回绕
+sum += count               // 经典 TryFun 从 0 起算，Meta2 / BlackHole 从 1 起算
+末尾追加 sum
+```
+
+| 协议 | 服务 / tx | 广播名 | 帧 |
+| --- | --- | --- | --- |
+| `tryfun` | `0000ff10`/`0000fff1` 或 `0000ffac`/`0000ffb5` | `TRYFUN-ONE`, `TF-SPRAY` | 摆动 `AA 02 07 [0-9] [ck]`；旋转 `AA 02 08 [0-9] [ck]` |
+| `tryfun` (TF-SPRAY) | 同上 | `TF-SPRAY` | `00 02 00 05 [1/2] [2 或 speed] 01 [1/0] [FD-speed]` |
+| `tryfun-meta2` | `0000ffac`/`0000ffb7` | `TF-META2` | `[pid] 02 00 05 21 05 [0B 摆动 / 08 振动 / 0E 旋转] [speed] [ck]` |
+| `tryfun-blackhole` | `0000ffac`/`0000ffb7` | `TF-BHPLUS`, `TF-ROCK` | `[pid] 02 00 03 [0C 摆动 / 09 振动] [speed] [ck]` |
+
+`pid` 是每帧自增的包头号。Meta2 的旋转速度按 `-(speed + 1)` 取反（与上游一致）。
+
+以上帧格式来自 buttplug 的 `tryfun.rs` / `tryfun_meta2.rs` / `tryfun_blackhole.rs`（BSD-3-Clause），
+**尚未经过实机验证**；如手上有设备，欢迎在 issue 里贴连接记录帮助我们校准。
+
+## 暂未支持：大人糖
+
+没有找到该品牌的公开 BLE 协议资料，上游 buttplug 的 149 个协议中也没有对应条目。
+在没有抓包样本前不实现，避免误报「已支持」。补协议需要：广播名、GATT 服务/特征值 UUID、
+以及一段「手机 App 控制时」的 HCI 抓包（或 nRF Connect 的写入记录）。
+
 ## 识别规则
 
 1. 广播名与型号 identifier 精确相同 → 置信度 0.95

@@ -1,7 +1,10 @@
 package com.pulse.app.ui.screens
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
+import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -28,10 +31,14 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.Memory
 import androidx.compose.material.icons.rounded.Mic
 import androidx.compose.material.icons.rounded.MusicNote
+import androidx.compose.material.icons.rounded.OpenInNew
+import androidx.compose.material.icons.rounded.Palette
+import androidx.compose.material.icons.rounded.SystemUpdate
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
@@ -42,12 +49,15 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -55,9 +65,12 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.core.content.ContextCompat
+import com.pulse.app.BuildConfig
 import com.pulse.app.PulseViewModel
 import com.pulse.app.core.CrashLog
 import com.pulse.app.core.TxLog
+import com.pulse.app.core.UpdateChecker
+import com.pulse.app.core.UpdateInfo
 import com.pulse.app.ui.DividerLine
 import com.pulse.app.ui.GlassCard
 import com.pulse.app.ui.GlowSlider
@@ -68,6 +81,7 @@ import com.pulse.app.ui.SectionHeader
 import com.pulse.app.ui.SpectrumBars
 import com.pulse.app.ui.StatusDot
 import com.pulse.app.ui.VSpace
+import kotlinx.coroutines.launch
 
 @Composable
 fun MoreScreen(vm: PulseViewModel) {
@@ -85,6 +99,37 @@ fun MoreScreen(vm: PulseViewModel) {
     var showManual by remember { mutableStateOf(false) }
     var showMusic by remember { mutableStateOf(false) }
     var crash by remember { mutableStateOf(CrashLog.read(ctx)) }
+    var update by remember { mutableStateOf<UpdateInfo?>(null) }
+    var checking by remember { mutableStateOf(false) }
+    var checkMsg by remember { mutableStateOf<String?>(null) }
+
+    val clipboard = LocalClipboardManager.current
+    val scope = rememberCoroutineScope()
+
+    fun openUrl(url: String) {
+        runCatching {
+            ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+        }.onFailure { vm.notify("没有可以打开链接的应用") }
+    }
+
+    fun diagnostics(): String = buildString {
+        appendLine("HushWave ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})")
+        appendLine("Android ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})")
+        appendLine("设备 ${Build.MANUFACTURER} ${Build.MODEL}")
+        CrashLog.read(ctx)?.let {
+            appendLine()
+            appendLine("--- 最近一次异常 ---")
+            appendLine(it.take(4000))
+        }
+        if (logs.isNotEmpty()) {
+            appendLine()
+            appendLine("--- 最近收发 ---")
+            logs.takeLast(40).forEach { l ->
+                val body = if (l.bytes.isEmpty()) l.note else l.hex
+                appendLine("${l.timeLabel} ${l.dir} $body")
+            }
+        }
+    }
 
     val audioLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -113,11 +158,13 @@ fun MoreScreen(vm: PulseViewModel) {
             Text("设置", style = MaterialTheme.typography.headlineLarge, color = Palette.Text)
             VSpace(2.dp)
             Text(
-                "设备记忆、声控与关于",
+                "外观、设备记忆、声控与关于",
                 style = MaterialTheme.typography.bodyMedium,
                 color = Palette.TextFaint
             )
         }
+
+        item { AppearanceCard() }
 
         item {
             GlassCard(Modifier.fillMaxWidth()) {
@@ -348,9 +395,10 @@ fun MoreScreen(vm: PulseViewModel) {
 
         item {
             GlassCard(Modifier.fillMaxWidth()) {
-                SectionHeader("关于", "1.0.0")
+                SectionHeader("关于", BuildConfig.VERSION_NAME)
                 Text(
-                    "支持 Galaku、Svakom、Lovense、We-Vibe、MagicMotion、Kiiroo、Satisfyer。",
+                    "支持 Galaku、Svakom、Lovense、We-Vibe、MagicMotion、Kiiroo、Satisfyer，" +
+                        "以及小怪兽 MonsterPub、网易春风 TryFun。",
                     style = MaterialTheme.typography.bodyMedium,
                     color = Palette.TextDim
                 )
@@ -360,7 +408,70 @@ fun MoreScreen(vm: PulseViewModel) {
                     style = MaterialTheme.typography.bodyMedium,
                     color = Palette.TextFaint
                 )
-                VSpace(8.dp)
+                VSpace(14.dp)
+                DividerLine()
+                VSpace(12.dp)
+                ActionRow(
+                    title = if (checking) "正在检查…" else "检查更新",
+                    subtitle = checkMsg ?: "当前版本 ${BuildConfig.VERSION_NAME}",
+                    icon = Icons.Rounded.SystemUpdate,
+                    accent = Palette.Cyan,
+                    enabled = !checking,
+                    label = if (checking) "…" else "检查"
+                ) {
+                    if (checking) return@ActionRow
+                    checking = true
+                    checkMsg = null
+                    scope.launch {
+                        UpdateChecker.latest()
+                            .onSuccess { info ->
+                                update = info
+                                checkMsg = if (UpdateChecker.isNewer(info.version, BuildConfig.VERSION_NAME)) {
+                                    "发现新版本 ${info.version}"
+                                } else {
+                                    "已是最新版本"
+                                }
+                                if (!UpdateChecker.isNewer(info.version, BuildConfig.VERSION_NAME)) {
+                                    vm.notify("已是最新版本")
+                                }
+                            }
+                            .onFailure { e ->
+                                checkMsg = "检查失败：${e.message ?: "网络不可用"}"
+                                vm.notify("检查更新失败，稍后再试")
+                            }
+                        checking = false
+                    }
+                }
+                val upd = update
+                if (upd != null && UpdateChecker.isNewer(upd.version, BuildConfig.VERSION_NAME)) {
+                    VSpace(10.dp)
+                    Box(
+                        Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(Palette.ActionBrush)
+                            .clickable { openUrl(upd.pageUrl) }
+                            .padding(vertical = 12.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            "前往下载 ${upd.version}",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = Color.White
+                        )
+                    }
+                }
+                VSpace(12.dp)
+                ActionRow(
+                    title = "GitHub 仓库",
+                    subtitle = "github.com/mlkgrnt/HushWave",
+                    icon = Icons.Rounded.OpenInNew,
+                    accent = Palette.Violet,
+                    label = "打开"
+                ) {
+                    openUrl(UpdateChecker.REPO)
+                }
+                VSpace(12.dp)
                 Text(
                     "部分品牌的指令格式参考了开源项目 Buttplug（BSD-3-Clause）。",
                     style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 0.2.sp),
@@ -395,25 +506,66 @@ fun MoreScreen(vm: PulseViewModel) {
         }
 
         item {
-            GlassCard(Modifier.fillMaxWidth(), padding = 16.dp) {
+            GlassCard(Modifier.fillMaxWidth()) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        Modifier
+                            .size(40.dp)
+                            .clip(RoundedCornerShape(13.dp))
+                            .background(Palette.Rose.copy(alpha = 0.14f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Rounded.ContentCopy, null, tint = Palette.Rose, modifier = Modifier.size(19.dp))
+                    }
+                    Spacer(Modifier.width(12.dp))
                     Column(Modifier.weight(1f)) {
-                        Text("遇到问题", style = MaterialTheme.typography.titleMedium, color = Palette.Text)
+                        Text("欢迎提 issue", style = MaterialTheme.typography.titleMedium, color = Palette.Text)
                         Text(
-                            "查看连接记录，或把最近一次错误发给我",
+                            "遇到问题、想加新玩具，都欢迎到仓库里说一声",
                             style = MaterialTheme.typography.bodyMedium,
                             color = Palette.TextFaint
                         )
                     }
+                }
+                VSpace(14.dp)
+                Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
                     Box(
                         Modifier
-                            .clip(RoundedCornerShape(11.dp))
-                            .background(Palette.overlay(0.05f))
-                            .border(1.dp, Palette.overlay(0.08f), RoundedCornerShape(11.dp))
-                            .clickable { showLogs = true }
-                            .padding(horizontal = 12.dp, vertical = 7.dp)
+                            .weight(1.3f)
+                            .height(44.dp)
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(Palette.ActionBrush)
+                            .clickable {
+                                clipboard.setText(AnnotatedString(diagnostics()))
+                                vm.notify("诊断信息已复制，粘贴到 issue 里即可")
+                            },
+                        contentAlignment = Alignment.Center
                     ) {
-                        Text("查看", style = MaterialTheme.typography.labelLarge, color = Palette.TextDim)
+                        Text("复制诊断信息", style = MaterialTheme.typography.labelLarge, color = Color.White)
+                    }
+                    Box(
+                        Modifier
+                            .weight(0.9f)
+                            .height(44.dp)
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(Palette.overlay(0.05f))
+                            .border(1.dp, Palette.overlay(0.08f), RoundedCornerShape(14.dp))
+                            .clickable { showLogs = true },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("连接记录", style = MaterialTheme.typography.labelLarge, color = Palette.TextDim)
+                    }
+                    Box(
+                        Modifier
+                            .height(44.dp)
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(Palette.overlay(0.05f))
+                            .border(1.dp, Palette.overlay(0.08f), RoundedCornerShape(14.dp))
+                            .clickable { openUrl(UpdateChecker.ISSUES) }
+                            .padding(horizontal = 12.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Rounded.OpenInNew, null, tint = Palette.TextDim, modifier = Modifier.size(17.dp))
                     }
                 }
                 if (crash != null) {
@@ -449,7 +601,7 @@ fun MoreScreen(vm: PulseViewModel) {
                     color = Palette.TextFaint
                 )
                 Spacer(Modifier.weight(1f))
-                Pill("1.0.0", Palette.TextFaint)
+                Pill(BuildConfig.VERSION_NAME, Palette.TextFaint)
             }
         }
     }
@@ -468,6 +620,58 @@ fun MoreScreen(vm: PulseViewModel) {
             logs = logs,
             onDismiss = { showLogs = false }
         )
+    }
+}
+
+@Composable
+private fun ActionRow(
+    title: String,
+    subtitle: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    accent: Color,
+    label: String,
+    enabled: Boolean = true,
+    onClick: () -> Unit
+) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Box(
+            Modifier
+                .size(34.dp)
+                .clip(RoundedCornerShape(11.dp))
+                .background(accent.copy(alpha = 0.13f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(icon, null, tint = accent, modifier = Modifier.size(17.dp))
+        }
+        Spacer(Modifier.width(10.dp))
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.labelLarge, color = Palette.Text)
+            Text(
+                subtitle,
+                style = MaterialTheme.typography.bodyMedium,
+                color = Palette.TextFaint,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+        Box(
+            Modifier
+                .clip(RoundedCornerShape(11.dp))
+                .background(if (enabled) Palette.overlay(0.05f) else Color.Transparent)
+                .border(
+                    1.dp,
+                    if (enabled) Palette.overlay(0.08f) else Palette.overlay(0.04f),
+                    RoundedCornerShape(11.dp)
+                )
+                .clickable(enabled = enabled, onClick = onClick)
+                .padding(horizontal = 12.dp, vertical = 7.dp)
+        ) {
+            Text(
+                label,
+                style = MaterialTheme.typography.labelLarge,
+                color = if (enabled) Palette.TextDim else Palette.TextFaint
+            )
+        }
     }
 }
 

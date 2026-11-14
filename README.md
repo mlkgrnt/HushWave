@@ -8,7 +8,7 @@
 
 ## 能做什么
 
-- **多品牌直连**：Galaku、Svakom（v1–v6）、Lovense、We-Vibe（8bit）、MagicMotion（v1–v4）、Kiiroo（v2.1）、Satisfyer
+- **多品牌直连**：Galaku、Svakom（v1–v6）、Lovense、We-Vibe（8bit）、MagicMotion（v1–v4）、Kiiroo（v2.1）、Satisfyer、小怪兽 MonsterPub、网易春风 TryFun
 - **玩具记忆**：按蓝牙地址记住品牌 / 协议 / 通道 / 上次设置，下次连上自动恢复
 - **通道化控制**：振动、旋转、摆动、气阀、吮吸、抽插、气泵、电击（含频率）、加热、灯效
 - **总强度**：一根滑杆推所有通道；单独动过某个通道后自动让位，直到再次拖动
@@ -17,7 +17,10 @@
 - **声控**：麦克风 FFT，低频跟拍 + 静音门限，可选通道
 - **音乐**：导入本地歌曲，本地解码分析「激昂程度」曲线，按进度驱动通道
 - **模式互斥**：波形 / 摇一摇 / 声控 / 音乐同时只会有一个在跑
-- **深色 / 浅色**：默认跟随系统，浅色是糖果色，深色是原来的紫夜配色
+- **主题**：跟随系统 / 固定浅色 / 固定深色；浅色与深色可各选一套配色
+  （糖果、极光、薄荷、晚霞、海盐、葡萄、素色），支持自定义主色和 Android 12+ 壁纸取色
+- **反馈与更新**：一键复制诊断信息（版本 / 机型 / 崩溃栈 / 蓝牙收发），GitHub 检查更新与仓库入口
+- **信号**：扫描列表显示实时 dBm
 
 ## 支持的品牌
 
@@ -30,20 +33,30 @@
 | MagicMotion | `magic-motion-1..4` | 12 / 17 字节定长包 |
 | Kiiroo | `kiiroo-v21` | 仅振动 |
 | Satisfyer | `satisfyer` | 每马达 4 字节，500ms 保活 |
+| 小怪兽 Sistalk | `monsterpub` | 连接时读 `00008001` 拿挑战串、XOR 密钥后写回；双通道 0–100 |
+| 网易春风 | `tryfun` | 元系列摆动 / 旋转；TF-SPRAY 用 9 字节振动帧 |
+| 网易春风 | `tryfun-meta2` | Meta 2：包头号 + `21 05 08/0B/0E` + 速度 + 校验和 |
+| 网易春风 | `tryfun-blackhole` | 黑洞 Plus / Rock：包头号 + `03 09/0C` + 速度 + 校验和 |
 
 设备定义来自 buttplug 的 `buttplug-device-config-v5`（BSD-3-Clause），抽取成 `app/src/main/assets/toy_catalog.json`；
 伽拉库私有协议来自官方 App 反编译。细节见 [docs/PROTOCOL.md](docs/PROTOCOL.md)。
 
+**暂未支持：大人糖。** 该品牌没有公开的 BLE 协议资料，buttplug 上游的 149 个协议里也没有对应条目；
+在没有抓包样本之前不猜测指令格式，避免「显示已支持但发不出有效指令」。有实机抓包或官方协议文档后可随时补上。
+其它未收录型号仍可走「设置 → 手动添加设备」指定品牌与通道。
+
 ## 构建
 
 ```bash
-# JDK 17 + Android SDK 34 + Gradle 8.5
+# JDK 17 + Android SDK 34 + Gradle 8.x
 gradle :app:assembleDebug
-gradle :app:testDebugUnitTest   # 16 个编码回归测试
+gradle :app:testDebugUnitTest   # 22 个编码回归测试
 ```
 
 - 工程放在非 ASCII 路径时保留 `android.overridePathCheck=true`
-- Gradle 测试任务在中文路径下会 `ClassNotFoundException`，跑测试请把工程复制到纯英文路径
+- 跑测试时 `GRADLE_USER_HOME` 不能是中文路径：Gradle 会把 worker 的 classpath 参数文件写在
+  `$GRADLE_USER_HOME/.tmp/`，JVM 读不到就会报 `ClassNotFoundException: GradleWorkerMain`。
+  可把工程和 `GRADLE_USER_HOME` 都放到纯英文路径（后者也可用目录联接指向原缓存）
 
 ## 目录
 

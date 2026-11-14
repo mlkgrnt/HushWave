@@ -62,6 +62,9 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.pulse.app.ui.AuroraBackground
 import com.pulse.app.ui.Palette
 import com.pulse.app.ui.PulseTheme
+import com.pulse.app.ui.ThemeState
+import com.pulse.app.ui.rememberAccents
+import com.pulse.app.ui.rememberDynamicScheme
 import com.pulse.app.ui.screens.ControlScreen
 import com.pulse.app.ui.screens.DevicesScreen
 import com.pulse.app.ui.screens.MoreScreen
@@ -72,14 +75,18 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        ThemeState.load(this)
         setContent {
-            val dark = isSystemInDarkTheme()
+            val systemDark = isSystemInDarkTheme()
+            val dark = ThemeState.resolveDark(systemDark)
+            val accents = rememberAccents(dark)
+            val scheme = rememberDynamicScheme(dark)
             val view = LocalView.current
             LaunchedEffect(dark) {
                 WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = !dark
                 WindowCompat.getInsetsController(window, view).isAppearanceLightNavigationBars = !dark
             }
-            PulseTheme(dark = dark) {
+            PulseTheme(dark = dark, accents = accents, scheme = scheme) {
                 val vm: PulseViewModel = viewModel()
                 AppRoot(vm)
             }

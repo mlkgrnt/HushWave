@@ -194,13 +194,105 @@ class DriverTest {
         assertEquals(100.toByte(), p[4])
     }
 
+    private fun one(type: ModuleType, max: Int, index: Int = 0) =
+        ModuleSpec(type, index, type.cn, max)
+
+    @Test
+    fun monsterpub_two_channels() {
+        val modules = listOf(
+            ModuleSpec(ModuleType.VIBRATE, 0, "振动 A", 100),
+            ModuleSpec(ModuleType.VIBRATE, 1, "振动 B", 100)
+        )
+        val c = DriverContext(
+            null, modules, mapOf("VIBRATE:0" to 0.5f, "VIBRATE:1" to 1f)
+        )
+        val p = Drivers.of("monsterpub").packets(c)
+        assertArrayEquals(byteArrayOf(50, 100), p.first())
+    }
+
+    @Test
+    fun monsterpub_tracys_dog_adds_prefix() {
+        val p = Drivers.of("monsterpub").packets(
+            ctx(vib(2), mapOf(ModuleType.VIBRATE to 0.5f), name = "TracyDog")
+        )
+        assertArrayEquals(byteArrayOf(0x03, 50, 50), p.first())
+    }
+
+    @Test
+    fun tryfun_oscillate_and_rotate_checksum() {
+        val modules = listOf(one(ModuleType.OSCILLATE, 9), one(ModuleType.ROTATE, 9))
+        val p = Drivers.of("tryfun").packets(
+            ctx(
+                modules,
+                mapOf(ModuleType.OSCILLATE to 1f, ModuleType.ROTATE to 1f)
+            )
+        )
+        assertEquals(2, p.size)
+        assertArrayEquals(byteArrayOf(0xAA.toByte(), 0x02, 0x07, 0x09, 0xF0.toByte()), p[0])
+        assertArrayEquals(byteArrayOf(0xAA.toByte(), 0x02, 0x08, 0x09, 0xEF.toByte()), p[1])
+    }
+
+    @Test
+    fun tryfun_spray_vibrate() {
+        val p = Drivers.of("tryfun").packets(
+            ctx(listOf(one(ModuleType.VIBRATE, 4)), mapOf(ModuleType.VIBRATE to 1f))
+        )
+        assertArrayEquals(
+            byteArrayOf(0x00, 0x02, 0x00, 0x05, 0x02, 0x04, 0x01, 0x00, 0xF9.toByte()),
+            p.first()
+        )
+    }
+
+    @Test
+    fun tryfun_meta2_packet_id_and_checksum() {
+        val modules = listOf(
+            one(ModuleType.OSCILLATE, 100), one(ModuleType.VIBRATE, 100)
+        )
+        val p = Drivers.of("tryfun-meta2").packets(
+            ctx(
+                modules,
+                mapOf(ModuleType.OSCILLATE to 1f, ModuleType.VIBRATE to 1f)
+            )
+        )
+        assertEquals(2, p.size)
+        assertArrayEquals(
+            byteArrayOf(0x00, 0x02, 0x00, 0x05, 0x21, 0x05, 0x0B, 0x64, 0x6B),
+            p[0]
+        )
+        assertArrayEquals(
+            byteArrayOf(0x01, 0x02, 0x00, 0x05, 0x21, 0x05, 0x08, 0x64, 0x6E),
+            p[1]
+        )
+    }
+
+    @Test
+    fun tryfun_blackhole_vibrate() {
+        val modules = listOf(one(ModuleType.OSCILLATE, 100), one(ModuleType.VIBRATE, 100))
+        val p = Drivers.of("tryfun-blackhole").packets(
+            ctx(
+                modules,
+                mapOf(ModuleType.OSCILLATE to 1f, ModuleType.VIBRATE to 1f)
+            )
+        )
+        assertEquals(2, p.size)
+        assertArrayEquals(
+            byteArrayOf(0x00, 0x02, 0x00, 0x03, 0x0C, 0x64, 0x90.toByte()),
+            p[0]
+        )
+        assertArrayEquals(
+            byteArrayOf(0x01, 0x02, 0x00, 0x03, 0x09, 0x64, 0x93.toByte()),
+            p[1]
+        )
+    }
+
     @Test
     fun all_protocols_have_driver() {
         val ids = listOf(
             "galaku", "lovense", "svakom-v1", "svakom-v2", "svakom-v3",
             "svakom-v4", "svakom-v5", "svakom-v6", "wevibe-8bit",
             "magic-motion-1", "magic-motion-2", "magic-motion-3", "magic-motion-4",
-            "kiiroo-v21", "satisfyer"
+            "kiiroo-v21", "satisfyer", "monsterpub",
+            "tryfun", "tryfun-meta2", "tryfun-blackhole"
         )
         ids.forEach { id ->
             val modules = vib(1)

@@ -44,6 +44,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
@@ -268,12 +269,17 @@ fun AuraOrb(
                 }
             }
 
-            // 暗色玻璃球体
+            // 玻璃球体：深色是深空玻璃，浅色是磨砂白，避免浅色主题里出现一个黑圆
+            val orbTop = if (Palette.dark) Color(0xFF1A2138) else Color.White
+            val orbMid =
+                if (Palette.dark) Color(0xFF101427) else lerp(Color.White, accent, 0.06f)
+            val orbBottom =
+                if (Palette.dark) Color(0xFF070A13) else lerp(Color.White, accent, 0.13f)
             drawCircle(
                 brush = Brush.radialGradient(
-                    0f to Color(0xFF1A2138),
-                    0.55f to Color(0xFF101427),
-                    1f to Color(0xFF070A13)
+                    0f to orbTop,
+                    0.55f to orbMid,
+                    1f to orbBottom
                 ),
                 radius = core,
                 center = c
@@ -295,7 +301,8 @@ fun AuraOrb(
             // 内部核心光
             drawCircle(
                 brush = Brush.radialGradient(
-                    0f to Color.White.copy(alpha = 0.02f + 0.34f * smooth),
+                    0f to (if (Palette.dark) Color.White else accent)
+                        .copy(alpha = 0.02f + 0.34f * smooth),
                     0.35f to accent.copy(alpha = 0.03f + 0.26f * smooth),
                     0.75f to accent.copy(alpha = 0.01f + 0.09f * smooth),
                     1f to Color.Transparent
@@ -305,7 +312,8 @@ fun AuraOrb(
             )
             // 左上高光
             drawArc(
-                color = Color.White.copy(alpha = 0.10f + 0.10f * smooth),
+                color = if (Palette.dark) Color.White.copy(alpha = 0.10f + 0.10f * smooth)
+                else accent.copy(alpha = 0.16f + 0.14f * smooth),
                 startAngle = 195f,
                 sweepAngle = 70f,
                 useCenter = false,
@@ -322,7 +330,8 @@ fun AuraOrb(
                 val x = c.x + cos(t) * rr
                 val y = c.y + sin(t) * rr * 0.94f
                 drawCircle(
-                    color = Color.White.copy(alpha = 0.06f + 0.20f * smooth * (0.4f + 0.6f * sin(t * 3f))),
+                    color = (if (Palette.dark) Color.White else accent)
+                        .copy(alpha = 0.06f + 0.20f * smooth * (0.4f + 0.6f * sin(t * 3f))),
                     radius = (0.6f + 1.2f * smooth).dp.toPx(),
                     center = Offset(x, y)
                 )
