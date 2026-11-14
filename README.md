@@ -1,5 +1,10 @@
 # HushWave
 
+[![License: GPL-3.0-or-later](https://img.shields.io/badge/License-GPL--3.0--or--later-F06FA0?style=flat-square)](LICENSE)
+[![Latest release](https://img.shields.io/github/v/release/mlkgrnt/HushWave?style=flat-square&color=F06FA0)](https://github.com/mlkgrnt/HushWave/releases/latest)
+![Android 8.0+ | API 26](https://img.shields.io/badge/Android-8.0%2B%20%7C%20API%2026-3DDC84?style=flat-square&logo=android&logoColor=white)
+![Kotlin 1.9.22](https://img.shields.io/badge/Kotlin-1.9.22-7F52FF?style=flat-square&logo=kotlin&logoColor=white)
+
 <img src="docs/icon.png" width="120" align="right" alt="HushWave icon" />
 
 本地直连的多品牌小玩具控制器。Android / Kotlin + Jetpack Compose，不联网、不需要电脑。
