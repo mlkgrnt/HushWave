@@ -16,6 +16,16 @@ android {
         vectorDrawables { useSupportLibrary = true }
     }
 
+    signingConfigs {
+        // 默认 debug 包只有 v2 签名，部分国产 ROM 的安装器会误报「缺少开发者证书」。
+        // 仍用同一张 Android Debug 证书，显式补齐 v1 / v2 / v3，覆盖安装的签名保持一致。
+        getByName("debug") {
+            enableV1Signing = true
+            enableV2Signing = true
+            enableV3Signing = true
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false

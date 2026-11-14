@@ -286,9 +286,31 @@ class DriverTest {
     }
 
     @Test
+    fun jissbon_reuses_galaku_frames() {
+        // 杰士邦 小粉饼 / G29D 落在 Galaku OEM 方案里，双振动通道应与 galaku 输出逐字节一致
+        val modules = listOf(
+            ModuleSpec(ModuleType.VIBRATE, 0, "振动 A", 100),
+            ModuleSpec(ModuleType.VIBRATE, 1, "振动 B", 100)
+        )
+        val c = DriverContext(
+            "G29D", modules, mapOf("VIBRATE:0" to 0.4f, "VIBRATE:1" to 0.9f)
+        )
+        val a = Drivers.of("jissbon").packets(c)
+        val b = Drivers.of("galaku").packets(c)
+        assertEquals(1, a.size)
+        assertEquals(b.size, a.size)
+        a.zip(b).forEach { assertArrayEquals("jissbon 与 galaku 帧不一致", it.first, it.second) }
+        val plain = GalakuProtocol.decrypt(a.first())
+        assertEquals(0x23.toByte(), plain[0])   // 帧头
+        assertEquals(3.toByte(), plain[6])      // 双电机标志
+        assertEquals(40.toByte(), plain[7])     // 振动 A
+        assertEquals(90.toByte(), plain[8])     // 振动 B
+    }
+
+    @Test
     fun all_protocols_have_driver() {
         val ids = listOf(
-            "galaku", "lovense", "svakom-v1", "svakom-v2", "svakom-v3",
+            "galaku", "jissbon", "lovense", "svakom-v1", "svakom-v2", "svakom-v3",
             "svakom-v4", "svakom-v5", "svakom-v6", "wevibe-8bit",
             "magic-motion-1", "magic-motion-2", "magic-motion-3", "magic-motion-4",
             "kiiroo-v21", "satisfyer", "monsterpub",

@@ -10,6 +10,7 @@ import com.pulse.app.core.ModuleType
  * 编码规则来自 buttplug（BSD-3-Clause）的 protocol_impl：
  *  lovense / svakom-v1..v6 / wevibe-8bit / magic-motion-1..4 / kiiroo-v21 / satisfyer
  * 伽拉库部分来自官方 App 反编译（比 buttplug 的实现更完整，支持吮吸/抽插/泵/电击）。
+ * 杰士邦 jissbon 的小粉饼 / G29D 落在同一套 Galaku OEM 方案里，直接复用 GalakuDriver。
  */
 data class DriverContext(
     val deviceName: String?,
@@ -41,7 +42,7 @@ interface ToyDriver {
 object Drivers {
 
     fun of(protocolId: String): ToyDriver = when {
-        protocolId == "galaku" -> GalakuDriver()
+        protocolId == "galaku" || protocolId == "jissbon" -> GalakuDriver()
         protocolId == "lovense" -> LovenseDriver()
         protocolId.startsWith("svakom-v") ->
             SvakomDriver(protocolId.removePrefix("svakom-v").toIntOrNull() ?: 1)

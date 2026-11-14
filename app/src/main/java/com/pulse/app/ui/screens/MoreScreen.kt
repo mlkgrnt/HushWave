@@ -398,7 +398,7 @@ fun MoreScreen(vm: PulseViewModel) {
                 SectionHeader("关于", BuildConfig.VERSION_NAME)
                 Text(
                     "支持 Galaku、Svakom、Lovense、We-Vibe、MagicMotion、Kiiroo、Satisfyer，" +
-                        "以及小怪兽 MonsterPub、网易春风 TryFun。",
+                        "以及小怪兽 MonsterPub、网易春风 TryFun、杰士邦 Jissbon。",
                     style = MaterialTheme.typography.bodyMedium,
                     color = Palette.TextDim
                 )

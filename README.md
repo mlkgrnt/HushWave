@@ -8,7 +8,7 @@
 
 ## 能做什么
 
-- **多品牌直连**：Galaku、Svakom（v1–v6）、Lovense、We-Vibe（8bit）、MagicMotion（v1–v4）、Kiiroo（v2.1）、Satisfyer、小怪兽 MonsterPub、网易春风 TryFun
+- **多品牌直连**：Galaku、Svakom（v1–v6）、Lovense、We-Vibe（8bit）、MagicMotion（v1–v4）、Kiiroo（v2.1）、Satisfyer、小怪兽 MonsterPub、网易春风 TryFun、杰士邦 Jissbon
 - **玩具记忆**：按蓝牙地址记住品牌 / 协议 / 通道 / 上次设置，下次连上自动恢复
 - **通道化控制**：振动、旋转、摆动、气阀、吮吸、抽插、气泵、电击（含频率）、加热、灯效
 - **总强度**：一根滑杆推所有通道；单独动过某个通道后自动让位，直到再次拖动
@@ -37,12 +37,15 @@
 | 网易春风 | `tryfun` | 元系列摆动 / 旋转；TF-SPRAY 用 9 字节振动帧 |
 | 网易春风 | `tryfun-meta2` | Meta 2：包头号 + `21 05 08/0B/0E` + 速度 + 校验和 |
 | 网易春风 | `tryfun-blackhole` | 黑洞 Plus / Rock：包头号 + `03 09/0C` + 速度 + 校验和 |
+| 杰士邦 Jissbon | `jissbon` | 小粉饼 / `G29D` 复用 Galaku OEM 帧，双振动通道；其它型号走手动添加 |
 
 设备定义来自 buttplug 的 `buttplug-device-config-v5`（BSD-3-Clause），抽取成 `app/src/main/assets/toy_catalog.json`；
 伽拉库私有协议来自官方 App 反编译。细节见 [docs/PROTOCOL.md](docs/PROTOCOL.md)。
 
-**暂未支持：大人糖。** 该品牌没有公开的 BLE 协议资料，buttplug 上游的 149 个协议里也没有对应条目；
-在没有抓包样本之前不猜测指令格式，避免「显示已支持但发不出有效指令」。有实机抓包或官方协议文档后可随时补上。
+**关于大人糖：** 已向品牌客服确认，该品牌全线没有蓝牙 / 远程控制产品，网上流传的「蓝牙版」也找不到对应实物，
+上游 buttplug 的协议列表中同样没有对应条目。因此不再列入协议支持计划，也不做无依据的猜测实现。
+若将来确有蓝牙新品，按「广播名 + GATT UUID + 一段控制抓包」的流程接入即可。
+
 其它未收录型号仍可走「设置 → 手动添加设备」指定品牌与通道。
 
 ## 构建
@@ -50,7 +53,7 @@
 ```bash
 # JDK 17 + Android SDK 34 + Gradle 8.x
 gradle :app:assembleDebug
-gradle :app:testDebugUnitTest   # 22 个编码回归测试
+gradle :app:testDebugUnitTest   # 23 个编码回归测试
 ```
 
 - 工程放在非 ASCII 路径时保留 `android.overridePathCheck=true`

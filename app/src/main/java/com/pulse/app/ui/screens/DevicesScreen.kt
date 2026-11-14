@@ -597,7 +597,7 @@ private fun signalColor(rssi: Int) = when {
 }
 
 private fun shortModel(record: ToyRecord): String {    val name = record.modelName
-    val prefixes = listOf(record.brand, "Svakom", "Galaku", "Lovense", "WeVibe", "We-Vibe", "MagicMotion")
+    val prefixes = listOf(record.brand, "Svakom", "Galaku", "Jissbon", "杰士邦", "Lovense", "WeVibe", "We-Vibe", "MagicMotion")
     val hit = prefixes.firstOrNull { name.startsWith("$it ", true) }
     return if (hit != null) name.substring(hit.length).trim() else name
 }

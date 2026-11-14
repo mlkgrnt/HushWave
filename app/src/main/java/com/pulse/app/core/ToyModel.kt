@@ -61,7 +61,7 @@ data class CatalogModel(
     /** 去掉品牌前缀，只留型号本身（不音译、不翻译） */
     val shortName: String
         get() {
-            val prefix = listOf(brand, "Svakom", "Galaku", "Lovense", "WeVibe", "We-Vibe", "MagicMotion")
+            val prefix = listOf(brand, "Svakom", "Galaku", "Jissbon", "杰士邦", "Lovense", "WeVibe", "We-Vibe", "MagicMotion")
                 .filter { it.isNotBlank() }
                 .firstOrNull { name.startsWith("$it ", ignoreCase = true) }
             return if (prefix != null) name.substring(prefix.length).trim() else name

@@ -274,10 +274,35 @@ sum += count               // 经典 TryFun 从 0 起算，Meta2 / BlackHole 从
 以上帧格式来自 buttplug 的 `tryfun.rs` / `tryfun_meta2.rs` / `tryfun_blackhole.rs`（BSD-3-Clause），
 **尚未经过实机验证**；如手上有设备，欢迎在 issue 里贴连接记录帮助我们校准。
 
-## 暂未支持：大人糖
+## 杰士邦 Jissbon（`jissbon`）
 
-没有找到该品牌的公开 BLE 协议资料，上游 buttplug 的 149 个协议中也没有对应条目。
-在没有抓包样本前不实现，避免误报「已支持」。补协议需要：广播名、GATT 服务/特征值 UUID、
+杰士邦「小粉饼」系列有蓝牙 / App 遥控版本。可交叉印证的两条线索：
+
+- Galaku 官方 App 的 `device_items.json` 里有一条 `小粉饼 / G29D`，模块是两路振动；
+- buttplug 的 `galaku.yml` 里同一 identifier `G29D` 名为 `Galaku Small powder cake`，同样是两路 vibrate。
+
+也就是说这款产品落在 Galaku 的 OEM 方案里，因此 `jissbon` 复用 `galaku` 的 GATT 端点与
+`GalakuDriver` 编码（`0x23` 帧头 / KEY_TAB / 校验和），只是品牌与型号归属单独列出：
+
+```
+service 00001000-0000-1000-8000-00805f9b34fb
+  tx    00001001-0000-1000-8000-00805f9b34fb
+  rx    00001002-0000-1000-8000-00805f9b34fb
+```
+
+- 广播名 `G29D` → 精确识别为「杰士邦 · 小粉饼」，两个振动通道
+- 其它型号（例如双糖小粉饼 / 小粉饼 2.0）暂无抓包依据，不猜测指令：
+  可在「设置 → 手动添加设备」选「杰士邦」，用同一套 Galaku 帧试，并按实际通道勾选
+- 由于与 Galaku 共用 service UUID，仅靠扫描响应里的 UUID 无法区分品牌，
+  此时会回落到 Galaku；驱动完全相同，功能不受影响
+
+**尚未经过实机验证**，欢迎带连接记录提 issue 校准。
+
+## 不在支持范围：大人糖
+
+已向品牌客服确认，该品牌全线没有蓝牙 / 远程控制产品，网上流传的「蓝牙版」目前找不到对应实物；
+上游 buttplug 的 149 个协议中也没有对应条目。因此不再列入协议计划，也不做未经验证的猜测实现。
+若以后确有蓝牙新品，补协议需要：广播名、GATT 服务/特征值 UUID、
 以及一段「手机 App 控制时」的 HCI 抓包（或 nRF Connect 的写入记录）。
 
 ## 识别规则
