@@ -5,6 +5,9 @@
 > BSD-3-Clause 与 GPL-3.0 兼容，可以并入并以 GPL 整体再授权，但其版权声明、
 > 许可条件与免责声明必须随源码和二进制分发原样保留。
 > 下方上游声明里提到的 Joycon 相关组件本项目并未直接使用，保留仅为来源完整。
+>
+> 两个公开 release 的旧附件已于同日备份下架、以相同版本号重新以 GPL-3.0-or-later 发布；
+> `1.0.1` 起的 APK 在 `assets/GPL-3.0.txt` 内置许可全文，满足二进制分发时随附许可文本的要求。
 
 本项目的多品牌协议编码（lovense / svakom / wevibe / magic-motion / kiiroo / satisfyer）
 参考并移植自 [buttplug](https://github.com/buttplugio/buttplug) 的 `crates/buttplug_server/src/device/protocol_impl`

@@ -33,6 +33,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.DeleteOutline
+import androidx.compose.material.icons.rounded.Description
 import androidx.compose.material.icons.rounded.Memory
 import androidx.compose.material.icons.rounded.Mic
 import androidx.compose.material.icons.rounded.MusicNote
@@ -472,8 +473,19 @@ fun MoreScreen(vm: PulseViewModel) {
                     openUrl(UpdateChecker.REPO)
                 }
                 VSpace(12.dp)
+                ActionRow(
+                    title = "开源许可",
+                    subtitle = "GPL-3.0-or-later · 全文随安装包附带",
+                    icon = Icons.Rounded.Description,
+                    accent = Palette.Lime,
+                    label = "查看"
+                ) {
+                    openUrl(UpdateChecker.REPO + "/blob/main/LICENSE")
+                }
+                VSpace(12.dp)
                 Text(
-                    "部分品牌的指令格式参考了开源项目 Buttplug（BSD-3-Clause）。",
+                    "本应用以 GPL-3.0-or-later 开源，分发衍生作品时须同样开源。" +
+                        "部分品牌的指令格式参考了 Buttplug（BSD-3-Clause）。",
                     style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 0.2.sp),
                     color = Palette.TextFaint
                 )
