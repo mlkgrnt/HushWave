@@ -6,6 +6,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -42,6 +43,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -65,6 +67,10 @@ import androidx.compose.ui.window.DialogProperties
 import com.pulse.app.PulseViewModel
 import com.pulse.app.core.ModuleType
 import com.pulse.app.core.Pattern
+import com.pulse.app.core.WaveLayer
+import com.pulse.app.core.WaveMath
+import com.pulse.app.core.WaveOp
+import com.pulse.app.core.WavePrimitive
 import com.pulse.app.ui.DividerLine
 import com.pulse.app.ui.GlassCard
 import com.pulse.app.ui.GlowSlider
@@ -74,6 +80,7 @@ import com.pulse.app.ui.Pill
 import com.pulse.app.ui.SectionHeader
 import com.pulse.app.ui.VSpace
 import kotlin.math.abs
+import kotlin.math.roundToInt
 
 @Composable
 fun PatternsScreen(vm: PulseViewModel) {
@@ -470,9 +477,23 @@ private fun WaveEditorDialog(
     sync: Boolean,
     onDismiss: () -> Unit
 ) {
+    var tab by remember { mutableIntStateOf(0) }
     val points = remember { mutableStateListOf<Pair<Float, Float>>() }
+    val layers = remember { mutableStateListOf(WaveLayer(amplitude = 0.85f)) }
+    var expanded by remember { mutableIntStateOf(0) }
     var name by remember { mutableStateOf("我的曲线") }
     var duration by remember { mutableFloatStateOf(5f) }
+
+    val durationMs = (duration * 1000).toInt()
+    val curve = remember(layers.toList()) { WaveMath.synthesize(layers) }
+    val tooFast = layers.any { it.primitive.periodic && WaveMath.hertz(it.cycles, durationMs) > 3f }
+    val seam = layers.any { WaveMath.hasSeam(it) }
+
+    // 切标签时把默认名跟着换掉，用户自己改过就不动
+    LaunchedEffect(tab) {
+        if (tab == 1 && name == "我的曲线") name = "我的波形"
+        if (tab == 0 && name == "我的波形") name = "我的曲线"
+    }
 
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Column(
@@ -486,7 +507,8 @@ private fun WaveEditorDialog(
                 Column(Modifier.weight(1f)) {
                     Text("波形编辑器", style = MaterialTheme.typography.headlineMedium, color = Palette.Text)
                     Text(
-                        "手指在格子里拖动，横轴是时间，纵轴是强度",
+                        if (tab == 0) "手指在格子里拖动，横轴是时间，纵轴是强度"
+                        else "几个基础函数叠起来，调幅度、频率、相位",
                         style = MaterialTheme.typography.bodyMedium,
                         color = Palette.TextFaint
                     )
@@ -503,170 +525,134 @@ private fun WaveEditorDialog(
                 }
             }
 
-            VSpace(18.dp)
+            VSpace(14.dp)
 
-            Box(
-                Modifier
-                    .fillMaxWidth()
-                    .height(250.dp)
-                    .clip(RoundedCornerShape(22.dp))
-                    .background(Palette.SurfaceHi)
-                    .border(1.dp, Palette.overlay(0.08f), RoundedCornerShape(22.dp))
-                    .pointerInput(Unit) {
-                        detectTapGestures { o ->
-                            points.add(
-                                (o.x / size.width).coerceIn(0f, 1f) to
-                                    (1f - o.y / size.height).coerceIn(0f, 1f)
-                            )
-                        }
-                    }
-                    .pointerInput(Unit) {
-                        detectDragGestures(
-                            onDragStart = { o ->
-                                points.add(
-                                    (o.x / size.width).coerceIn(0f, 1f) to
-                                        (1f - o.y / size.height).coerceIn(0f, 1f)
-                                )
-                            },
-                            onDrag = { change, _ ->
-                                points.add(
-                                    (change.position.x / size.width).coerceIn(0f, 1f) to
-                                        (1f - change.position.y / size.height).coerceIn(0f, 1f)
-                                )
-                            }
-                        )
-                    }
-            ) {
-                Canvas(Modifier.fillMaxSize().padding(1.dp)) {
-                    val w = size.width
-                    val h = size.height
-                    for (i in 1..7) {
-                        val y = h * i / 8f
-                        drawLine(
-                            color = Palette.overlay(0.045f),
-                            start = Offset(0f, y),
-                            end = Offset(w, y),
-                            strokeWidth = 1.dp.toPx()
-                        )
-                    }
-                    for (i in 1..11) {
-                        val x = w * i / 12f
-                        drawLine(
-                            color = Palette.overlay(0.035f),
-                            start = Offset(x, 0f),
-                            end = Offset(x, h),
-                            strokeWidth = 1.dp.toPx()
-                        )
-                    }
-                    if (points.size >= 2) {
-                        val sorted = points.sortedBy { it.first }
-                        val path = Path()
-                        sorted.forEachIndexed { i, p ->
-                            val x = p.first * w
-                            val y = (1f - p.second) * h
-                            if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
-                        }
-                        val fill = Path().apply {
-                            addPath(path)
-                            lineTo(sorted.last().first * w, h)
-                            lineTo(sorted.first().first * w, h)
-                            close()
-                        }
-                        drawPath(
-                            fill,
-                            brush = Brush.verticalGradient(
-                                listOf(Palette.Violet.copy(alpha = 0.30f), Color.Transparent)
-                            )
-                        )
-                        drawPath(
-                            path,
-                            brush = Brush.horizontalGradient(listOf(Palette.Violet, Palette.Cyan)),
-                            style = Stroke(width = 2.4.dp.toPx(), cap = StrokeCap.Round)
-                        )
-                        sorted.forEach { p ->
-                            drawCircle(
-                                color = Color.White.copy(alpha = 0.75f),
-                                radius = 2.dp.toPx(),
-                                center = Offset(p.first * w, (1f - p.second) * h)
-                            )
-                        }
-                    } else {
-                        drawLine(
-                            color = Palette.TextFaint.copy(alpha = 0.5f),
-                            start = Offset(0f, h * 0.7f),
-                            end = Offset(w, h * 0.7f),
-                            strokeWidth = 1.5.dp.toPx()
-                        )
-                    }
-                }
-                if (points.isEmpty()) {
-                    Text(
-                        "在这里画",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = Palette.TextFaint,
-                        modifier = Modifier.align(Alignment.Center)
-                    )
-                }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                EditorTab("手绘", tab == 0, Modifier.weight(1f)) { tab = 0 }
+                EditorTab("函数", tab == 1, Modifier.weight(1f)) { tab = 1 }
             }
 
             VSpace(14.dp)
 
-            OutlinedTextField(
-                value = name,
-                onValueChange = { name = it.take(18) },
-                label = { Text("名称") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = Palette.Violet,
-                    unfocusedBorderColor = Palette.overlay(0.12f),
-                    focusedLabelColor = Palette.Violet,
-                    unfocusedLabelColor = Palette.TextFaint,
-                    focusedTextColor = Palette.Text,
-                    unfocusedTextColor = Palette.Text
-                )
-            )
+            if (tab == 0) {
+                DrawPad(points, Modifier.fillMaxWidth().height(250.dp))
+                VSpace(14.dp)
+                NameField(name) { name = it.take(18) }
+                VSpace(16.dp)
+                DurationSlider(duration) { duration = it }
+                Spacer(Modifier.weight(1f))
+            } else {
+                Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
+                    CurvePreview(curve, Modifier.fillMaxWidth().height(150.dp))
+                    VSpace(12.dp)
+                    layers.forEachIndexed { i, layer ->
+                        LayerCard(
+                            index = i,
+                            layer = layer,
+                            expanded = expanded == i,
+                            durationMs = durationMs,
+                            canDelete = layers.size > 1,
+                            onExpand = { expanded = if (expanded == i) -1 else i },
+                            onChange = { layers[i] = it },
+                            onDelete = {
+                                layers.removeAt(i)
+                                if (expanded >= layers.size) expanded = layers.size - 1
+                            }
+                        )
+                        VSpace(10.dp)
+                    }
+                    if (layers.size < WaveMath.MAX_LAYERS) {
+                        Box(
+                            Modifier
+                                .fillMaxWidth()
+                                .height(44.dp)
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(Palette.overlay(0.04f))
+                                .border(1.dp, Palette.overlay(0.08f), RoundedCornerShape(14.dp))
+                                .clickable {
+                                    layers.add(WaveLayer(op = WaveOp.ADD, amplitude = 0.5f))
+                                    expanded = layers.size - 1
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                "＋ 加一层（最多 ${WaveMath.MAX_LAYERS} 层）",
+                                style = MaterialTheme.typography.labelLarge,
+                                color = Palette.TextDim
+                            )
+                        }
+                        VSpace(12.dp)
+                    }
+                    if (tooFast) {
+                        Text(
+                            "超过 3 Hz：玩具每秒只收到 10 帧，再高就是一片抖动，听不出起伏。",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Palette.Rose.copy(alpha = 0.85f)
+                        )
+                        VSpace(6.dp)
+                    }
+                    if (seam) {
+                        Text(
+                            "周期数不是整数，循环回到起点时会跳一下。",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Palette.TextFaint
+                        )
+                        VSpace(6.dp)
+                    }
+                    Text(
+                        "多层叠加超过 1.0 时会按峰值整体缩回，不会顶在满速。",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Palette.TextFaint
+                    )
+                }
+                VSpace(12.dp)
+                NameField(name) { name = it.take(18) }
+                VSpace(14.dp)
+                DurationSlider(duration) { duration = it }
+            }
 
-            VSpace(16.dp)
-            GlowSlider(
-                label = "循环时长",
-                value = (duration - 1f) / 19f,
-                onChange = { duration = 1f + it * 19f },
-                accent = Palette.Cyan,
-                valueText = "%.1fs".format(duration)
-            )
-
-            Spacer(Modifier.weight(1f))
+            VSpace(12.dp)
 
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Box(
-                    Modifier
-                        .height(50.dp)
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(Palette.overlay(0.05f))
-                        .border(1.dp, Palette.overlay(0.08f), RoundedCornerShape(16.dp))
-                        .clickable { points.clear() }
-                        .padding(horizontal = 22.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text("清空", style = MaterialTheme.typography.labelLarge, color = Palette.TextDim)
+                if (tab == 0) {
+                    Box(
+                        Modifier
+                            .height(50.dp)
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(Palette.overlay(0.05f))
+                            .border(1.dp, Palette.overlay(0.08f), RoundedCornerShape(16.dp))
+                            .clickable { points.clear() }
+                            .padding(horizontal = 22.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("清空", style = MaterialTheme.typography.labelLarge, color = Palette.TextDim)
+                    }
                 }
+                val ready = tab == 1 || points.size >= 2
                 Box(
                     Modifier
                         .weight(1f)
                         .height(50.dp)
                         .clip(RoundedCornerShape(16.dp))
                         .background(
-                            if (points.size >= 2)
+                            if (ready)
                                 Palette.ActionBrush
                             else Brush.horizontalGradient(listOf(Palette.SurfaceHi, Palette.Surface))
                         )
-                        .clickable(enabled = points.size >= 2) {
-                            val p = vm.saveCustom(
-                                name.ifBlank { "我的曲线" },
-                                (duration * 1000).toInt(),
-                                points.toList()
-                            )
+                        .clickable(enabled = ready) {
+                            val p = if (tab == 0) {
+                                vm.saveCustom(
+                                    name.ifBlank { "我的曲线" },
+                                    durationMs,
+                                    points.toList()
+                                )
+                            } else {
+                                vm.saveSynthesis(
+                                    name.ifBlank { "我的波形" },
+                                    durationMs,
+                                    layers.toList()
+                                )
+                            }
                             vm.playPattern(p, 1f, targetKeys, sync)
                             onDismiss()
                         },
@@ -675,16 +661,410 @@ private fun WaveEditorDialog(
                     Text(
                         "保存并播放",
                         style = MaterialTheme.typography.labelLarge,
-                        color = if (points.size >= 2) Color.White else Palette.TextFaint
+                        color = if (ready) Color.White else Palette.TextFaint
                     )
                 }
             }
             VSpace(10.dp)
             Text(
-                "画得越密越顺滑；只有 1 个点无法生成曲线。",
+                if (tab == 0) "画得越密越顺滑；只有 1 个点无法生成曲线。"
+                else "第 1 层是基底，后面每层按自己的运算叠上去。",
                 style = MaterialTheme.typography.labelSmall,
                 color = Palette.TextFaint
             )
         }
+    }
+}
+
+@Composable
+private fun EditorTab(
+    text: String,
+    active: Boolean,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier
+            .height(40.dp)
+            .clip(RoundedCornerShape(13.dp))
+            .background(if (active) Palette.Violet.copy(alpha = 0.18f) else Palette.overlay(0.04f))
+            .border(
+                1.dp,
+                if (active) Palette.Violet.copy(alpha = 0.5f) else Palette.overlay(0.07f),
+                RoundedCornerShape(13.dp)
+            )
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text,
+            style = MaterialTheme.typography.labelLarge,
+            color = if (active) Palette.Violet else Palette.TextDim
+        )
+    }
+}
+
+@Composable
+private fun NameField(value: String, onChange: (String) -> Unit) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onChange,
+        label = { Text("名称") },
+        singleLine = true,
+        modifier = Modifier.fillMaxWidth(),
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedBorderColor = Palette.Violet,
+            unfocusedBorderColor = Palette.overlay(0.12f),
+            focusedLabelColor = Palette.Violet,
+            unfocusedLabelColor = Palette.TextFaint,
+            focusedTextColor = Palette.Text,
+            unfocusedTextColor = Palette.Text
+        )
+    )
+}
+
+@Composable
+private fun DurationSlider(duration: Float, onChange: (Float) -> Unit) {
+    GlowSlider(
+        label = "循环时长",
+        value = (duration - 1f) / 19f,
+        onChange = { onChange(1f + it * 19f) },
+        accent = Palette.Cyan,
+        valueText = "%.1fs".format(duration)
+    )
+}
+
+/** 手绘区：点一下落一个点，拖动连续画 */
+@Composable
+private fun DrawPad(points: MutableList<Pair<Float, Float>>, modifier: Modifier = Modifier) {
+    Box(
+        modifier
+            .clip(RoundedCornerShape(22.dp))
+            .background(Palette.SurfaceHi)
+            .border(1.dp, Palette.overlay(0.08f), RoundedCornerShape(22.dp))
+            .pointerInput(Unit) {
+                detectTapGestures { o ->
+                    points.add(
+                        (o.x / size.width).coerceIn(0f, 1f) to
+                            (1f - o.y / size.height).coerceIn(0f, 1f)
+                    )
+                }
+            }
+            .pointerInput(Unit) {
+                detectDragGestures(
+                    onDragStart = { o ->
+                        points.add(
+                            (o.x / size.width).coerceIn(0f, 1f) to
+                                (1f - o.y / size.height).coerceIn(0f, 1f)
+                        )
+                    },
+                    onDrag = { change, _ ->
+                        points.add(
+                            (change.position.x / size.width).coerceIn(0f, 1f) to
+                                (1f - change.position.y / size.height).coerceIn(0f, 1f)
+                        )
+                    }
+                )
+            }
+    ) {
+        Canvas(Modifier.fillMaxSize().padding(1.dp)) {
+            val w = size.width
+            val h = size.height
+            for (i in 1..7) {
+                val y = h * i / 8f
+                drawLine(
+                    color = Palette.overlay(0.045f),
+                    start = Offset(0f, y),
+                    end = Offset(w, y),
+                    strokeWidth = 1.dp.toPx()
+                )
+            }
+            for (i in 1..11) {
+                val x = w * i / 12f
+                drawLine(
+                    color = Palette.overlay(0.035f),
+                    start = Offset(x, 0f),
+                    end = Offset(x, h),
+                    strokeWidth = 1.dp.toPx()
+                )
+            }
+            if (points.size >= 2) {
+                val sorted = points.sortedBy { it.first }
+                val path = Path()
+                sorted.forEachIndexed { i, p ->
+                    val x = p.first * w
+                    val y = (1f - p.second) * h
+                    if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
+                }
+                val fill = Path().apply {
+                    addPath(path)
+                    lineTo(sorted.last().first * w, h)
+                    lineTo(sorted.first().first * w, h)
+                    close()
+                }
+                drawPath(
+                    fill,
+                    brush = Brush.verticalGradient(
+                        listOf(Palette.Violet.copy(alpha = 0.30f), Color.Transparent)
+                    )
+                )
+                drawPath(
+                    path,
+                    brush = Brush.horizontalGradient(listOf(Palette.Violet, Palette.Cyan)),
+                    style = Stroke(width = 2.4.dp.toPx(), cap = StrokeCap.Round)
+                )
+                sorted.forEach { p ->
+                    drawCircle(
+                        color = Color.White.copy(alpha = 0.75f),
+                        radius = 2.dp.toPx(),
+                        center = Offset(p.first * w, (1f - p.second) * h)
+                    )
+                }
+            } else {
+                drawLine(
+                    color = Palette.TextFaint.copy(alpha = 0.5f),
+                    start = Offset(0f, h * 0.7f),
+                    end = Offset(w, h * 0.7f),
+                    strokeWidth = 1.5.dp.toPx()
+                )
+            }
+        }
+        if (points.isEmpty()) {
+            Text(
+                "在这里画",
+                style = MaterialTheme.typography.bodyMedium,
+                color = Palette.TextFaint,
+                modifier = Modifier.align(Alignment.Center)
+            )
+        }
+    }
+}
+
+/** 函数波形预览 */
+@Composable
+private fun CurvePreview(curve: FloatArray, modifier: Modifier = Modifier) {
+    Box(
+        modifier
+            .clip(RoundedCornerShape(22.dp))
+            .background(Palette.SurfaceHi)
+            .border(1.dp, Palette.overlay(0.08f), RoundedCornerShape(22.dp))
+    ) {
+        Canvas(Modifier.fillMaxSize().padding(1.dp)) {
+            val w = size.width
+            val h = size.height
+            for (i in 1..3) {
+                val y = h * i / 4f
+                drawLine(
+                    color = Palette.overlay(0.05f),
+                    start = Offset(0f, y),
+                    end = Offset(w, y),
+                    strokeWidth = 1.dp.toPx()
+                )
+            }
+            for (i in 1..7) {
+                val x = w * i / 8f
+                drawLine(
+                    color = Palette.overlay(0.035f),
+                    start = Offset(x, 0f),
+                    end = Offset(x, h),
+                    strokeWidth = 1.dp.toPx()
+                )
+            }
+            if (curve.size >= 2) {
+                val path = Path()
+                curve.forEachIndexed { i, v ->
+                    val x = i.toFloat() / (curve.size - 1) * w
+                    val y = (1f - v.coerceIn(0f, 1f)) * h
+                    if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
+                }
+                val fill = Path().apply {
+                    addPath(path)
+                    lineTo(w, h)
+                    lineTo(0f, h)
+                    close()
+                }
+                drawPath(
+                    fill,
+                    brush = Brush.verticalGradient(
+                        listOf(Palette.Violet.copy(alpha = 0.30f), Color.Transparent)
+                    )
+                )
+                drawPath(
+                    path,
+                    brush = Brush.horizontalGradient(listOf(Palette.Violet, Palette.Cyan)),
+                    style = Stroke(width = 2.4.dp.toPx(), cap = StrokeCap.Round)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun LayerCard(
+    index: Int,
+    layer: WaveLayer,
+    expanded: Boolean,
+    durationMs: Int,
+    canDelete: Boolean,
+    onExpand: () -> Unit,
+    onChange: (WaveLayer) -> Unit,
+    onDelete: () -> Unit
+) {
+    GlassCard(Modifier.fillMaxWidth(), padding = 14.dp) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onExpand),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                if (index == 0) "基底" else "层 ${index + 1}",
+                style = MaterialTheme.typography.labelSmall,
+                color = Palette.TextFaint
+            )
+            Spacer(Modifier.width(9.dp))
+            Text(
+                "${layer.primitive.label} ${fmtCycles(layer.cycles)}×",
+                style = MaterialTheme.typography.titleMedium,
+                color = Palette.Text
+            )
+            Spacer(Modifier.weight(1f))
+            if (index > 0) {
+                Pill(layer.op.label, Palette.Violet)
+                Spacer(Modifier.width(8.dp))
+            }
+            Text(
+                if (expanded) "收起" else "调整",
+                style = MaterialTheme.typography.labelSmall,
+                color = Palette.TextDim
+            )
+        }
+
+        if (!expanded) return@GlassCard
+
+        VSpace(12.dp)
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(7.dp)
+        ) {
+            WavePrimitive.entries.forEach { p ->
+                val on = layer.primitive == p
+                Box(
+                    Modifier
+                        .clip(RoundedCornerShape(11.dp))
+                        .background(
+                            if (on) Palette.Violet.copy(alpha = 0.18f) else Palette.overlay(0.04f)
+                        )
+                        .border(
+                            1.dp,
+                            if (on) Palette.Violet.copy(alpha = 0.5f) else Palette.overlay(0.06f),
+                            RoundedCornerShape(11.dp)
+                        )
+                        .clickable { onChange(layer.copy(primitive = p)) }
+                        .padding(horizontal = 12.dp, vertical = 7.dp)
+                ) {
+                    Text(
+                        p.label,
+                        style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 0.sp),
+                        color = if (on) Palette.Violet else Palette.TextDim
+                    )
+                }
+            }
+        }
+
+        if (index > 0) {
+            VSpace(12.dp)
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(7.dp)
+            ) {
+                listOf(WaveOp.ADD, WaveOp.MUL, WaveOp.MAX, WaveOp.MIN, WaveOp.MIX).forEach { op ->
+                    val on = layer.op == op
+                    Box(
+                        Modifier
+                            .clip(RoundedCornerShape(11.dp))
+                            .background(
+                                if (on) Palette.Cyan.copy(alpha = 0.16f) else Palette.overlay(0.04f)
+                            )
+                            .border(
+                                1.dp,
+                                if (on) Palette.Cyan.copy(alpha = 0.45f) else Palette.overlay(0.06f),
+                                RoundedCornerShape(11.dp)
+                            )
+                            .clickable { onChange(layer.copy(op = op)) }
+                            .padding(horizontal = 12.dp, vertical = 7.dp)
+                    ) {
+                        Text(
+                            op.label,
+                            style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 0.sp),
+                            color = if (on) Palette.Cyan else Palette.TextDim
+                        )
+                    }
+                }
+            }
+        }
+
+        VSpace(14.dp)
+        GlowSlider(
+            label = "幅度",
+            value = layer.amplitude,
+            onChange = { onChange(layer.copy(amplitude = it)) },
+            accent = Palette.Violet,
+            valueText = "${(layer.amplitude * 100).roundToInt()}%"
+        )
+
+        if (layer.primitive.periodic) {
+            VSpace(10.dp)
+            GlowSlider(
+                label = "每循环起伏",
+                value = (layer.cycles - WaveMath.MIN_CYCLES) /
+                    (WaveMath.MAX_CYCLES - WaveMath.MIN_CYCLES),
+                onChange = { v ->
+                    val raw = WaveMath.MIN_CYCLES + v * (WaveMath.MAX_CYCLES - WaveMath.MIN_CYCLES)
+                    // 吸附到 1/4 次，整数周期随手就能调到，循环接缝才不会跳
+                    onChange(layer.copy(cycles = (raw * 4).roundToInt() / 4f))
+                },
+                accent = Palette.Cyan,
+                valueText = "${fmtCycles(layer.cycles)}× · " +
+                    "%.2f Hz".format(WaveMath.hertz(layer.cycles, durationMs))
+            )
+        }
+
+        VSpace(10.dp)
+        GlowSlider(
+            label = "相位",
+            value = layer.phase,
+            onChange = { onChange(layer.copy(phase = it)) },
+            accent = Palette.Rose,
+            valueText = "${(layer.phase * 100).roundToInt()}%"
+        )
+
+        if (canDelete) {
+            VSpace(10.dp)
+            Box(
+                Modifier
+                    .clickable(onClick = onDelete)
+                    .padding(vertical = 4.dp)
+            ) {
+                Text(
+                    "删除这一层",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Palette.Rose
+                )
+            }
+        }
+    }
+}
+
+private fun fmtCycles(v: Float): String {
+    val s = "%.2f".format(v)
+    return when {
+        s.endsWith(".00") -> s.dropLast(3)
+        s.endsWith("0") -> s.dropLast(1)
+        else -> s
     }
 }

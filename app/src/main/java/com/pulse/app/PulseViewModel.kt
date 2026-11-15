@@ -27,6 +27,8 @@ import com.pulse.app.core.ToyCatalog
 import com.pulse.app.core.ToyEngine
 import com.pulse.app.core.ToyMemory
 import com.pulse.app.core.ToyRecord
+import com.pulse.app.core.WaveLayer
+import com.pulse.app.core.WaveMath
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -545,6 +547,23 @@ class PulseViewModel(app: Application) : AndroidViewModel(app) {
 
     fun saveCustom(name: String, durationMs: Int, trace: List<Pair<Float, Float>>): Pattern {
         val p = PresetLibrary.fromTrace(name, durationMs, trace)
+        val list = _customPatterns.value + p
+        _customPatterns.value = list
+        store.save(list)
+        _toast.value = "已保存「$name」"
+        return p
+    }
+
+    /** 函数合成：采样成点保存，同时留一份配方，方便以后接着调 */
+    fun saveSynthesis(name: String, durationMs: Int, layers: List<WaveLayer>): Pattern {
+        val p = Pattern(
+            id = "custom_${System.currentTimeMillis()}",
+            name = name,
+            durationMs = durationMs.coerceIn(300, 30_000),
+            points = WaveMath.synthesize(layers),
+            tag = "函数",
+            recipe = WaveMath.encode(layers)
+        )
         val list = _customPatterns.value + p
         _customPatterns.value = list
         store.save(list)

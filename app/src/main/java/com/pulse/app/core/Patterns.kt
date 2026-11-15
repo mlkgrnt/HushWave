@@ -29,7 +29,9 @@ data class Pattern(
     val durationMs: Int,
     val points: FloatArray,
     val tag: String = "",
-    val builtIn: Boolean = false
+    val builtIn: Boolean = false,
+    /** 函数波形的配方（JSON）。手绘波形为空；有它才能回头继续调参数 */
+    val recipe: String? = null
 ) {
     fun sample(phase: Float): Float {
         if (points.isEmpty()) return 0f
@@ -182,7 +184,8 @@ class PatternStore(context: Context) {
                             name = o.getString("name"),
                             durationMs = o.getInt("duration"),
                             points = pts.toFloatArray(),
-                            tag = o.optString("tag", "自定义")
+                            tag = o.optString("tag", "自定义"),
+                            recipe = o.optString("recipe").ifBlank { null }
                         )
                     )
                 }
@@ -209,6 +212,7 @@ class PatternStore(context: Context) {
                     put("duration", p.durationMs)
                     put("tag", p.tag)
                     put("points", p.points.filter { it.isFinite() }.joinToString(",") { "%.3f".format(it) })
+                    p.recipe?.let { put("recipe", it) }
                 }
             )
         }

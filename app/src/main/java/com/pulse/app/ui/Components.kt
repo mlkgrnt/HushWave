@@ -32,6 +32,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -370,6 +371,9 @@ fun GlowSlider(
 ) {
     val density = LocalDensity.current
     val v = value.coerceIn(0f, 1f)
+    // pointerInput 只在 key 变化时重启，旧 lambda 会一直捕着第一次组合时的状态；
+    // 编辑器里同一个滑杆要改的是「当前这一层」，所以这里始终取最新的回调。
+    val latestOnChange by rememberUpdatedState(onChange)
 
     Column(modifier.fillMaxWidth()) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -397,13 +401,13 @@ fun GlowSlider(
                 .pointerInput(enabled) {
                     if (!enabled) return@pointerInput
                     detectTapGestures { o ->
-                        onChange((o.x / size.width.toFloat()).coerceIn(0f, 1f))
+                        latestOnChange((o.x / size.width.toFloat()).coerceIn(0f, 1f))
                     }
                 }
                 .pointerInput(enabled) {
                     if (!enabled) return@pointerInput
                     detectHorizontalDragGestures { change, _ ->
-                        onChange((change.position.x / size.width.toFloat()).coerceIn(0f, 1f))
+                        latestOnChange((change.position.x / size.width.toFloat()).coerceIn(0f, 1f))
                     }
                 }
         ) {
