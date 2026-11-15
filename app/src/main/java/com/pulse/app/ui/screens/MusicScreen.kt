@@ -6,6 +6,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -34,13 +36,21 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -118,7 +128,8 @@ fun MusicDialog(vm: PulseViewModel, onDismiss: () -> Unit) {
                     position = position,
                     intensity = intensity,
                     onToggle = { vm.toggleSong() },
-                    onStop = { vm.stopSong() }
+                    onStop = { vm.stopSong() },
+                    onSeek = { vm.seekSong(it) }
                 )
                 VSpace(14.dp)
             }
@@ -216,7 +227,8 @@ private fun NowPlaying(
     position: Long,
     intensity: Float,
     onToggle: () -> Unit,
-    onStop: () -> Unit
+    onStop: () -> Unit,
+    onSeek: (Float) -> Unit
 ) {
     val frac = if (song.durationMs > 0) (position.toFloat() / song.durationMs).coerceIn(0f, 1f) else 0f
     Column(
@@ -270,22 +282,9 @@ private fun NowPlaying(
                 Icon(Icons.Rounded.Stop, null, tint = Palette.Rose)
             }
         }
-        VSpace(12.dp)
-        Box(
-            Modifier
-                .fillMaxWidth()
-                .height(4.dp)
-                .clip(RoundedCornerShape(50))
-                .background(Palette.overlay(0.08f))
-        ) {
-            Box(
-                Modifier
-                    .fillMaxWidth(frac)
-                    .height(4.dp)
-                    .background(Brush.horizontalGradient(listOf(Palette.Violet, Palette.Cyan)))
-            )
-        }
-        VSpace(12.dp)
+        VSpace(6.dp)
+        SeekBar(progress = frac, onSeek = onSeek)
+        VSpace(6.dp)
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("当前强度", style = MaterialTheme.typography.labelSmall, color = Palette.TextFaint)
             Spacer(Modifier.width(10.dp))
@@ -308,6 +307,76 @@ private fun NowPlaying(
                 "${(intensity.coerceIn(0f, 1f) * 100).roundToInt()}%",
                 style = MaterialTheme.typography.labelSmall.copy(fontFamily = FontFamily.Monospace),
                 color = Palette.Cyan
+            )
+        }
+    }
+}
+
+@Composable
+private fun SeekBar(progress: Float, onSeek: (Float) -> Unit) {
+    var width by remember { mutableIntStateOf(1) }
+    var dragging by remember { mutableStateOf(false) }
+    var local by remember { mutableFloatStateOf(progress.coerceIn(0f, 1f)) }
+
+    // 不拖动时跟着播放进度走；拖动时以手指为准，避免每 50ms 被播放器位置拽回去
+    LaunchedEffect(progress, dragging) {
+        if (!dragging) local = progress.coerceIn(0f, 1f)
+    }
+
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .height(26.dp)
+            .onSizeChanged { width = it.width.coerceAtLeast(1) }
+            .pointerInput(Unit) {
+                detectTapGestures { offset ->
+                    val f = (offset.x / width).coerceIn(0f, 1f)
+                    local = f
+                    onSeek(f)
+                }
+            }
+            .pointerInput(Unit) {
+                detectHorizontalDragGestures(
+                    onDragStart = { offset ->
+                        dragging = true
+                        local = (offset.x / width).coerceIn(0f, 1f)
+                    },
+                    onDragEnd = {
+                        dragging = false
+                        onSeek(local)
+                    },
+                    onDragCancel = { dragging = false }
+                ) { change, _ ->
+                    local = (change.position.x / width).coerceIn(0f, 1f)
+                }
+            },
+        contentAlignment = Alignment.CenterStart
+    ) {
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .height(4.dp)
+                .clip(RoundedCornerShape(50))
+                .background(Palette.overlay(0.08f))
+        )
+        Box(
+            Modifier
+                .fillMaxWidth(local)
+                .height(4.dp)
+                .clip(RoundedCornerShape(50))
+                .background(Brush.horizontalGradient(listOf(Palette.Violet, Palette.Cyan)))
+        )
+        Box(
+            Modifier
+                .fillMaxWidth(local)
+                .height(4.dp),
+            contentAlignment = Alignment.CenterEnd
+        ) {
+            Box(
+                Modifier
+                    .size(if (dragging) 14.dp else 9.dp)
+                    .clip(RoundedCornerShape(50))
+                    .background(Color.White)
             )
         }
     }

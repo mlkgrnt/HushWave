@@ -84,8 +84,10 @@ fun DevicesScreen(vm: PulseViewModel, onOpenControl: () -> Unit) {
     val state by vm.ble.state.collectAsState()
     val scanning by vm.ble.scanning.collectAsState()
     val scanned by vm.visibleDevices.collectAsState()
-    val devices = scanned.filter { it.match != null }
     val brand by vm.brandFilter.collectAsState()
+    // 只凭共用 / 通用 UUID 认出来的设备不上首页：那多半是电子价签、资产标签这类
+    // 同样用 BLE 串口模块的东西。用户明确选了品牌时还是放行，有些玩具不广播名字。
+    val devices = scanned.filter { it.match != null && (brand != null || it.match?.weak != true) }
     val record by vm.activeRecord.collectAsState()
     val saved by vm.savedToys.collectAsState()
     var pending by remember { mutableStateOf<(() -> Unit)?>(null) }
@@ -177,7 +179,7 @@ fun DevicesScreen(vm: PulseViewModel, onOpenControl: () -> Unit) {
                             color = Palette.Violet
                         )
                         Spacer(Modifier.width(14.dp))
-                        Column {
+                        Column(Modifier.weight(1f)) {
                             Text(
                                 "正在连接 ${s.name}",
                                 style = MaterialTheme.typography.titleMedium,
@@ -187,6 +189,21 @@ fun DevicesScreen(vm: PulseViewModel, onOpenControl: () -> Unit) {
                                 "请让玩具保持开机并靠近手机",
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = Palette.TextFaint
+                            )
+                        }
+                        Spacer(Modifier.width(10.dp))
+                        Box(
+                            Modifier
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(Palette.overlay(0.06f))
+                                .border(1.dp, Palette.overlay(0.1f), RoundedCornerShape(12.dp))
+                                .clickable(onClick = vm::cancelConnect)
+                                .padding(horizontal = 14.dp, vertical = 9.dp)
+                        ) {
+                            Text(
+                                "取消",
+                                style = MaterialTheme.typography.labelLarge,
+                                color = Palette.TextDim
                             )
                         }
                     }
@@ -281,6 +298,21 @@ fun DevicesScreen(vm: PulseViewModel, onOpenControl: () -> Unit) {
                 VSpace(9.dp)
             }
             item { VSpace(12.dp) }
+        }
+
+        // 被判定为「只有共用 UUID」的设备不上首页，但要让人知道它们去哪了
+        if (brand == null) {
+            val uncertain = scanned.count { it.match?.weak == true }
+            if (uncertain > 0) {
+                item {
+                    Text(
+                        "另有 $uncertain 台设备只有共用蓝牙服务，分不出是不是玩具，已收进「设置 → 手动添加设备」。",
+                        style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 0.3.sp),
+                        color = Palette.TextFaint
+                    )
+                    VSpace(12.dp)
+                }
+            }
         }
 
         if (saved.isNotEmpty()) {

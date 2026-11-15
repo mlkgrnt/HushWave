@@ -1,6 +1,7 @@
 package com.pulse.app.core
 
 import android.content.Context
+import android.media.AudioFormat
 import android.media.MediaCodec
 import android.media.MediaExtractor
 import android.media.MediaFormat
@@ -106,21 +107,36 @@ class MusicLibrary(context: Context) {
         return FloatArray(0)
     }
 
-    suspend fun analyze(song: Song): FloatArray = withContext(Dispatchers.Default) {
-        val env = decodeEnvelope(song.path)
-        if (env.isNotEmpty()) {
-            runCatching {
-                DataOutputStream(envelopeFile(song.id).outputStream().buffered()).use { out ->
-                    out.writeInt(env.size)
-                    env.forEach { out.writeFloat(it) }
+    suspend fun analyze(song: Song, onProgress: ((Float) -> Unit)? = null): FloatArray =
+        withContext(Dispatchers.Default) {
+            val env = decodeEnvelope(song.path, song.durationMs, onProgress)
+            if (env.isNotEmpty()) {
+                runCatching {
+                    DataOutputStream(envelopeFile(song.id).outputStream().buffered()).use { out ->
+                        out.writeInt(env.size)
+                        env.forEach { out.writeFloat(it) }
+                    }
                 }
             }
+            env
         }
-        env
-    }
 
     // ------------------------------------------------------------- 解码 & 分析
-    private fun decodeEnvelope(path: String): FloatArray {
+
+    /**
+     * 解码整首歌，按 50 ms 一帧算出 0..1 的「激昂程度」包络。
+     *
+     * 相比逐样本 `ByteBuffer.short`，这里做了三件事：
+     *  1. PCM 用 ShortBuffer / FloatBuffer 整块拷进数组，再在数组上算；
+     *  2. 按「音频帧」遍历、帧内取平均，立体声不用把两个声道都过一遍；
+     *  3. 88.2 kHz 以上的文件隔帧取样，低通系数同步换算，计算量减半。
+     * 同时把解码进度报给界面 —— 长歌不再只剩一句「正在分析」。
+     */
+    private fun decodeEnvelope(
+        path: String,
+        durationMs: Long,
+        onProgress: ((Float) -> Unit)?
+    ): FloatArray {
         val extractor = MediaExtractor()
         var codec: MediaCodec? = null
         return try {
@@ -145,7 +161,12 @@ class MusicLibrary(context: Context) {
 
             var sampleRate = runCatching { format.getInteger(MediaFormat.KEY_SAMPLE_RATE) }.getOrDefault(44100)
             var channels = runCatching { format.getInteger(MediaFormat.KEY_CHANNEL_COUNT) }.getOrDefault(2)
-            var frameSamples = (sampleRate * 0.05f).toInt().coerceAtLeast(256) * channels
+            var pcmFloat = pcmIsFloat(format)
+
+            // 隔帧取样的步长 + 对应的低通系数（保持同样的时间常数）
+            var step = if (sampleRate >= 88_000) 2 else 1
+            var alpha = if (step == 1) 0.05f else 0.0975f
+            var frameTarget = (sampleRate * 0.05f / step).toInt().coerceAtLeast(64)
 
             val rmsList = ArrayList<Float>(2048)
             val bassList = ArrayList<Float>(2048)
@@ -158,10 +179,15 @@ class MusicLibrary(context: Context) {
             var prev = 0f
             var lp = 0f
 
+            var shortBuf = ShortArray(8192)
+            var floatBuf = FloatArray(8192)
+
             val info = MediaCodec.BufferInfo()
             var inputDone = false
             var outputDone = false
             var guard = 0
+            var lastReport = 0L
+            val durationUs = durationMs * 1000L
 
             while (!outputDone && guard < 2_000_000) {
                 guard++
@@ -184,9 +210,14 @@ class MusicLibrary(context: Context) {
                 when {
                     outIdx == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> {
                         val f = codec.outputFormat
-                        sampleRate = runCatching { f.getInteger(MediaFormat.KEY_SAMPLE_RATE) }.getOrDefault(sampleRate)
-                        channels = runCatching { f.getInteger(MediaFormat.KEY_CHANNEL_COUNT) }.getOrDefault(channels)
-                        frameSamples = (sampleRate * 0.05f).toInt().coerceAtLeast(256) * channels
+                        sampleRate = runCatching { f.getInteger(MediaFormat.KEY_SAMPLE_RATE) }
+                            .getOrDefault(sampleRate)
+                        channels = runCatching { f.getInteger(MediaFormat.KEY_CHANNEL_COUNT) }
+                            .getOrDefault(channels)
+                        pcmFloat = pcmIsFloat(f)
+                        step = if (sampleRate >= 88_000) 2 else 1
+                        alpha = if (step == 1) 0.05f else 0.0975f
+                        frameTarget = (sampleRate * 0.05f / step).toInt().coerceAtLeast(64)
                     }
 
                     outIdx >= 0 -> {
@@ -196,25 +227,70 @@ class MusicLibrary(context: Context) {
                                 ob.position(info.offset)
                                 ob.limit(info.offset + info.size)
                                 ob.order(ByteOrder.nativeOrder())
-                                while (ob.remaining() >= 2) {
-                                    val s = ob.short / 32768f
-                                    rmsAcc += (s * s).toDouble()
-                                    lp += 0.05f * (s - lp)
-                                    bassAcc += (lp * lp).toDouble()
-                                    fluxAcc += abs(s - prev).toDouble()
-                                    prev = s
-                                    count++
-                                    if (count >= frameSamples) {
-                                        val n = count.toFloat()
-                                        rmsList.add(sqrt(rmsAcc / n).toFloat())
-                                        bassList.add(sqrt(bassAcc / n).toFloat())
-                                        fluxList.add((fluxAcc / n).toFloat())
-                                        rmsAcc = 0.0
-                                        bassAcc = 0.0
-                                        fluxAcc = 0.0
-                                        count = 0
+                                if (pcmFloat) {
+                                    val fb = ob.asFloatBuffer()
+                                    val n = fb.remaining()
+                                    if (floatBuf.size < n) floatBuf = FloatArray(n)
+                                    fb.get(floatBuf, 0, n)
+                                    var i = 0
+                                    while (i + channels <= n) {
+                                        var sum = 0f
+                                        for (c in 0 until channels) sum += floatBuf[i + c]
+                                        val s = sum / channels
+                                        rmsAcc += (s * s).toDouble()
+                                        lp += alpha * (s - lp)
+                                        bassAcc += (lp * lp).toDouble()
+                                        fluxAcc += abs(s - prev).toDouble()
+                                        prev = s
+                                        count++
+                                        if (count >= frameTarget) {
+                                            val d = count.toFloat()
+                                            rmsList.add(sqrt(rmsAcc / d).toFloat())
+                                            bassList.add(sqrt(bassAcc / d).toFloat())
+                                            fluxList.add((fluxAcc / d).toFloat())
+                                            rmsAcc = 0.0
+                                            bassAcc = 0.0
+                                            fluxAcc = 0.0
+                                            count = 0
+                                        }
+                                        i += channels * step
+                                    }
+                                } else {
+                                    val sb = ob.asShortBuffer()
+                                    val n = sb.remaining()
+                                    if (shortBuf.size < n) shortBuf = ShortArray(n)
+                                    sb.get(shortBuf, 0, n)
+                                    var i = 0
+                                    while (i + channels <= n) {
+                                        var sum = 0f
+                                        for (c in 0 until channels) sum += shortBuf[i + c]
+                                        val s = sum / (channels * 32768f)
+                                        rmsAcc += (s * s).toDouble()
+                                        lp += alpha * (s - lp)
+                                        bassAcc += (lp * lp).toDouble()
+                                        fluxAcc += abs(s - prev).toDouble()
+                                        prev = s
+                                        count++
+                                        if (count >= frameTarget) {
+                                            val d = count.toFloat()
+                                            rmsList.add(sqrt(rmsAcc / d).toFloat())
+                                            bassList.add(sqrt(bassAcc / d).toFloat())
+                                            fluxList.add((fluxAcc / d).toFloat())
+                                            rmsAcc = 0.0
+                                            bassAcc = 0.0
+                                            fluxAcc = 0.0
+                                            count = 0
+                                        }
+                                        i += channels * step
                                     }
                                 }
+                            }
+                        }
+                        if (durationUs > 0 && onProgress != null) {
+                            val now = System.currentTimeMillis()
+                            if (info.presentationTimeUs > 0 && now - lastReport > 200) {
+                                lastReport = now
+                                onProgress((info.presentationTimeUs.toFloat() / durationUs).coerceIn(0f, 1f))
                             }
                         }
                         codec.releaseOutputBuffer(outIdx, false)
@@ -248,6 +324,11 @@ class MusicLibrary(context: Context) {
             runCatching { extractor.release() }
         }
     }
+
+    /** 有些解码器会把高解析音频输出成 float PCM，按 short 读会得到一堆噪声 */
+    private fun pcmIsFloat(format: MediaFormat): Boolean = runCatching {
+        format.getInteger(MediaFormat.KEY_PCM_ENCODING) == AudioFormat.ENCODING_PCM_FLOAT
+    }.getOrDefault(false)
 
     private fun percentile(list: List<Float>, p: Float): Float {
         if (list.isEmpty()) return 0f

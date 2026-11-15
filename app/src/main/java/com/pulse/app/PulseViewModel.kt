@@ -12,6 +12,8 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.pulse.app.core.BleController
 import com.pulse.app.core.BleState
+import com.pulse.app.core.ModeMemory
+import com.pulse.app.core.ModeTargets
 import com.pulse.app.core.ModuleSpec
 import com.pulse.app.core.ModuleType
 import com.pulse.app.core.MusicEngine
@@ -44,8 +46,12 @@ class PulseViewModel(app: Application) : AndroidViewModel(app) {
     val music = MusicEngine(viewModelScope)
     val player = PatternPlayer(engine, viewModelScope)
     val memory = ToyMemory(app)
+    private val modeMemory = ModeMemory(app)
     val library = com.pulse.app.core.MusicLibrary(app)
     private val store = PatternStore(app)
+
+    /** 当前连接的玩具地址，模式目标按它存 */
+    private var modeAddress: String? = null
 
     val presets: List<Pattern> = PresetLibrary.presets
 
@@ -99,8 +105,44 @@ class PulseViewModel(app: Application) : AndroidViewModel(app) {
     private val _quickTargets = MutableStateFlow<Set<String>>(emptySet())
     val quickTargets: StateFlow<Set<String>> = _quickTargets.asStateFlow()
 
+    private val _patternTargets = MutableStateFlow<List<String>>(emptyList())
+    val patternTargets: StateFlow<List<String>> = _patternTargets.asStateFlow()
+
+    private val _patternSync = MutableStateFlow(true)
+    val patternSync: StateFlow<Boolean> = _patternSync.asStateFlow()
+
     private val _savedToys = MutableStateFlow(memory.all())
     val savedToys: StateFlow<List<ToyRecord>> = _savedToys.asStateFlow()
+
+    /**
+     * 「手动添加设备」用的列表。
+     *
+     * 扫描回调一秒能来十几次，直接渲染会让列表一直重排 —— 手指还没落下去条目就跑了。
+     * 这里按 1.2 秒采一次样，并且把 RSSI 按 10 dBm 分桶再排：只有信号真的跨档才挪位置，
+     * 同一桶内用名字和地址兜底，顺序是定的。
+     */
+    val manualDevices: StateFlow<List<ScanItem>> = MutableStateFlow<List<ScanItem>>(emptyList())
+        .also { out ->
+            viewModelScope.launch {
+                while (true) {
+                    delay(1200)
+                    if (ble.scanning.value) out.value = stableOrder(ble.devices.value)
+                }
+            }
+            viewModelScope.launch {
+                ble.scanning.collect { scanning ->
+                    if (!scanning) out.value = stableOrder(ble.devices.value)
+                }
+            }
+        }
+        .asStateFlow()
+
+    private fun stableOrder(list: List<ScanItem>): List<ScanItem> = list.sortedWith(
+        compareByDescending<ScanItem> { it.match != null }
+            .thenByDescending { (it.rssi + 100) / 10 }
+            .thenBy { it.name.lowercase() }
+            .thenBy { it.address }
+    )
 
     val brands: List<String> get() = ToyCatalog.brands
     val protocolCount: Int get() = ToyCatalog.protocols.size
@@ -178,6 +220,7 @@ class PulseViewModel(app: Application) : AndroidViewModel(app) {
 
     fun setQuickTargets(keys: Set<String>) {
         _quickTargets.value = keys
+        persistModes()
     }
 
     fun resolveVoiceTargets(): List<String> {
@@ -187,6 +230,7 @@ class PulseViewModel(app: Application) : AndroidViewModel(app) {
 
     fun setVoiceTargets(keys: Set<String>) {
         _voiceTargets.value = keys
+        persistModes()
     }
 
     fun resolveSongTargets(): List<String> {
@@ -196,6 +240,55 @@ class PulseViewModel(app: Application) : AndroidViewModel(app) {
 
     fun setSongTargets(keys: Set<String>) {
         _songTargets.value = keys
+        persistModes()
+    }
+
+    // ------------------------------------------------------- 模式目标记忆
+    /** 没有记录时用默认值；有记录就照记录来，空集合代表「用户全关了」 */
+    private fun restoreTargets(
+        saved: List<String>?,
+        modules: List<ModuleSpec>
+    ): Set<String> {
+        if (saved == null) return defaultQuickTargets(modules)
+        val available = modules.map { it.key }.toSet()
+        return saved.filter { it in available }.toSet()
+    }
+
+    private fun persistModes() {
+        val address = modeAddress ?: return
+        modeMemory.put(
+            address,
+            ModeTargets(
+                quick = _quickTargets.value.toList(),
+                voice = _voiceTargets.value.toList(),
+                song = _songTargets.value.toList(),
+                pattern = _patternTargets.value,
+                patternSync = _patternSync.value
+            )
+        )
+    }
+
+    private fun applyRestoredTargets(address: String?, modules: List<ModuleSpec>) {
+        modeAddress = address
+        val saved = address?.let { modeMemory.get(it) }
+        _quickTargets.value = restoreTargets(saved?.quick, modules)
+        _voiceTargets.value = restoreTargets(saved?.voice, modules)
+        _songTargets.value = restoreTargets(saved?.song, modules)
+        _patternTargets.value = saved?.pattern?.filter { key -> modules.any { it.key == key } }
+            ?: emptyList()
+        _patternSync.value = saved?.patternSync ?: true
+    }
+
+    /** 模块列表变了（换协议 / 手动改通道）后，把已经不存在的通道从选择里剔掉 */
+    private fun pruneTargets(modules: List<ModuleSpec>) {
+        val available = modules.map { it.key }.toSet()
+        val fallback = defaultQuickTargets(modules)
+        fun prune(set: Set<String>): Set<String> =
+            if (set.isEmpty()) set else set.filter { it in available }.toSet().ifEmpty { fallback }
+        _quickTargets.value = prune(_quickTargets.value)
+        _voiceTargets.value = prune(_voiceTargets.value)
+        _songTargets.value = prune(_songTargets.value)
+        _patternTargets.value = _patternTargets.value.filter { it in available }
     }
 
     private fun autosaveLoop() = viewModelScope.launch {
@@ -269,15 +362,36 @@ class PulseViewModel(app: Application) : AndroidViewModel(app) {
             knownModel = model != null && model.modules.isNotEmpty()
         )
         engine.configure(protocol, model, modules, item.name, if (usable) saved!!.values else emptyMap())
-        _quickTargets.value = defaultQuickTargets(modules)
-        _voiceTargets.value = defaultQuickTargets(modules)
-        _songTargets.value = defaultQuickTargets(modules)
+        // 每台玩具各自记住「哪个模式作用于哪些通道」
+        applyRestoredTargets(item.address, modules)
         engine.setDemo(false)
         ble.connect(item, protocol)
         if (!usable) {
             memory.save(_activeRecord.value!!)
             _savedToys.value = memory.all()
         }
+    }
+
+    /** 只读一遍 GATT 结构，不下发控制帧。给「设备特征收集」用。 */
+    fun inspectDevice(item: ScanItem) {
+        if (!ble.isSupported) {
+            ble.failInspect("这台设备没有蓝牙")
+            return
+        }
+        if (!ble.isBluetoothOn) {
+            ble.failInspect("蓝牙还没打开")
+            return
+        }
+        when (ble.state.value) {
+            is BleState.Ready -> {
+                _toast.value = "先断开当前设备，再读另一台"
+                return
+            }
+
+            is BleState.Connecting -> return
+            else -> Unit
+        }
+        ble.inspect(item)
     }
 
     /** 没设备时载入一台虚拟 Galaku 双电机，用于预览界面与波形 */
@@ -291,15 +405,30 @@ class PulseViewModel(app: Application) : AndroidViewModel(app) {
         )
         _activeRecord.value = null
         engine.configure(protocol, null, modules, "DEMO", emptyMap())
-        _quickTargets.value = defaultQuickTargets(modules)
-        _voiceTargets.value = defaultQuickTargets(modules)
-        _songTargets.value = defaultQuickTargets(modules)
+        applyRestoredTargets(null, modules)
         engine.setDemo(true)
         _toast.value = "模拟设备已载入（不会真的驱动）"
     }
 
+    /** 连接中取消：不用干等十几秒超时 */
+    fun cancelConnect() {
+        if (ble.state.value !is BleState.Connecting) return
+        ble.cancelConnect()
+        player.stop()
+        engine.setDemo(true)
+        engine.configure(null, null, emptyList(), null)
+        _activeRecord.value = null
+        modeAddress = null
+        _quickTargets.value = emptySet()
+        _voiceTargets.value = emptySet()
+        _songTargets.value = emptySet()
+        _patternTargets.value = emptyList()
+        _toast.value = "已取消连接"
+    }
+
     fun disconnect() {
         persistNow()
+        persistModes()
         ble.disconnect()
         player.stop()
         music.stop()
@@ -308,6 +437,10 @@ class PulseViewModel(app: Application) : AndroidViewModel(app) {
         engine.setDemo(true)
         engine.configure(null, null, emptyList(), null)
         _quickTargets.value = emptySet()
+        _voiceTargets.value = emptySet()
+        _songTargets.value = emptySet()
+        _patternTargets.value = emptyList()
+        modeAddress = null
         _activeRecord.value = null
     }
 
@@ -328,9 +461,8 @@ class PulseViewModel(app: Application) : AndroidViewModel(app) {
         )
         _activeRecord.value = newRec
         engine.configure(protocol, model, modules, rec.name, emptyMap())
-        _quickTargets.value = defaultQuickTargets(modules)
-        _voiceTargets.value = defaultQuickTargets(modules)
-        _songTargets.value = defaultQuickTargets(modules)
+        pruneTargets(modules)
+        persistModes()
         memory.save(newRec)
         _savedToys.value = memory.all()
         _toast.value = "已切换协议：${protocol.brand} · ${protocol.display}"
@@ -343,9 +475,8 @@ class PulseViewModel(app: Application) : AndroidViewModel(app) {
         val newRec = rec.copy(modules = modules, updatedAt = System.currentTimeMillis())
         _activeRecord.value = newRec
         engine.configure(engine.protocol.value, engine.model.value, modules, rec.name, rec.values)
-        _quickTargets.value = defaultQuickTargets(modules)
-        _voiceTargets.value = defaultQuickTargets(modules)
-        _songTargets.value = defaultQuickTargets(modules)
+        pruneTargets(modules)
+        persistModes()
         memory.save(newRec)
         _savedToys.value = memory.all()
         _toast.value = "模块已保存：${modules.size} 个"
@@ -353,12 +484,14 @@ class PulseViewModel(app: Application) : AndroidViewModel(app) {
 
     fun deleteToy(address: String) {
         memory.forget(address)
+        modeMemory.forget(address)
         _savedToys.value = memory.all()
         if (_activeRecord.value?.address == address) _activeRecord.value = null
     }
 
     fun clearAllToys() {
         memory.clear()
+        modeMemory.clear()
         _savedToys.value = memory.all()
     }
 
@@ -395,13 +528,22 @@ class PulseViewModel(app: Application) : AndroidViewModel(app) {
         if (_shakeMode.value) setShakeMode(false)
         if (_musicSync.value) setMusicSync(false)
         if (_songPlaying.value) stopSong()
+        _patternTargets.value = targetKeys
+        _patternSync.value = sync
+        persistModes()
         player.play(p, scale, targetKeys, sync)
     }
 
     fun togglePattern() = player.toggle()
     fun stopPattern() = player.stop()
     fun setPatternScale(v: Float) = player.setScale(v)
-    fun setPatternTarget(keys: List<String>, sync: Boolean) = player.setTargets(keys, sync)
+
+    fun setPatternTarget(keys: List<String>, sync: Boolean) {
+        _patternTargets.value = keys
+        _patternSync.value = sync
+        persistModes()
+        player.setTargets(keys, sync)
+    }
 
     fun saveCustom(name: String, durationMs: Int, trace: List<Pair<Float, Float>>): Pattern {
         val p = PresetLibrary.fromTrace(name, durationMs, trace)
@@ -488,6 +630,7 @@ class PulseViewModel(app: Application) : AndroidViewModel(app) {
     private var mediaPlayer: MediaPlayer? = null
     private var songJob: kotlinx.coroutines.Job? = null
     private var envelope: FloatArray = FloatArray(0)
+    private var seekGuardUntil = 0L
 
     fun importSong(uri: Uri) {
         viewModelScope.launch {
@@ -499,13 +642,17 @@ class PulseViewModel(app: Application) : AndroidViewModel(app) {
                 return@launch
             }
             _songBusy.value = "正在分析音乐…"
-            val env = library.analyze(song)
+            val started = System.currentTimeMillis()
+            val env = library.analyze(song) { p ->
+                _songBusy.value = "正在分析音乐… ${(p.coerceIn(0f, 1f) * 100).toInt()}%"
+            }
+            val secs = (System.currentTimeMillis() - started) / 1000f
             _songBusy.value = null
             if (env.isEmpty()) {
                 library.delete(song)
                 _toast.value = "这首歌没法分析，可能是不支持的格式"
             } else {
-                _toast.value = "已导入《${song.title}》"
+                _toast.value = "已导入《${song.title}》，分析用时 ${"%.1f".format(secs)} 秒"
             }
             _songs.value = library.list()
         }
@@ -521,11 +668,19 @@ class PulseViewModel(app: Application) : AndroidViewModel(app) {
                 return@launch
             }
             _songBusy.value = "正在分析音乐…"
-            val env = library.analyze(song)
+            val started = System.currentTimeMillis()
+            val env = library.analyze(song) { p ->
+                _songBusy.value = "正在分析音乐… ${(p.coerceIn(0f, 1f) * 100).toInt()}%"
+            }
+            val secs = (System.currentTimeMillis() - started) / 1000f
             _songBusy.value = null
             if (env.isEmpty()) library.delete(song)
             _songs.value = library.list()
-            _toast.value = if (env.isEmpty()) "分析失败" else "已导入《${song.title}》"
+            _toast.value = if (env.isEmpty()) {
+                "分析失败"
+            } else {
+                "已导入《${song.title}》，分析用时 ${"%.1f".format(secs)} 秒"
+            }
         }
     }
 
@@ -572,15 +727,34 @@ class PulseViewModel(app: Application) : AndroidViewModel(app) {
     private suspend fun followSong(song: com.pulse.app.core.Song) {
         while (_songPlaying.value) {
             val mp = mediaPlayer ?: break
+            val now = System.currentTimeMillis()
             val pos = runCatching { mp.currentPosition.toLong() }.getOrDefault(0L)
-            _songPosition.value = pos
-            val idx = (pos / 50L).toInt()
+            // seek 之后播放器上报的仍是旧位置，会把手柄弹回去；给一小段保护期
+            if (now >= seekGuardUntil) _songPosition.value = pos
+            val effective = if (now < seekGuardUntil) _songPosition.value else pos
+            val idx = (effective / 50L).toInt()
             val v = if (idx in envelope.indices) envelope[idx] else 0f
             _songIntensity.value = v
             val keys = resolveSongTargets()
             if (keys.isNotEmpty()) engine.setMany(keys.associateWith { v })
             delay(50)
         }
+    }
+
+    /** 拖动进度条：ratio 0..1 */
+    fun seekSong(ratio: Float) {
+        val mp = mediaPlayer ?: return
+        val s = _song.value ?: return
+        if (s.durationMs <= 0) return
+        val ms = (ratio.coerceIn(0f, 1f) * s.durationMs).toLong()
+        runCatching { mp.seekTo(ms.toInt()) }
+        seekGuardUntil = System.currentTimeMillis() + 400
+        _songPosition.value = ms
+        val idx = (ms / 50L).toInt()
+        val v = if (idx in envelope.indices) envelope[idx] else 0f
+        _songIntensity.value = v
+        val keys = resolveSongTargets()
+        if (keys.isNotEmpty()) engine.setMany(keys.associateWith { v })
     }
 
     fun toggleSong() {

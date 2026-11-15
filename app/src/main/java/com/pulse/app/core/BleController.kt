@@ -35,7 +35,11 @@ data class ScanItem(
     val rssi: Int,
     val services: List<String> = emptyList(),
     val match: ToyMatch? = null,
-    val lastSeen: Long = System.currentTimeMillis()
+    val lastSeen: Long = System.currentTimeMillis(),
+    /** 厂商自定义广播（0xNN -> HEX），给「设备特征收集」用 */
+    val manufacturer: Map<Int, String> = emptyMap(),
+    val serviceData: Map<String, String> = emptyMap(),
+    val connectable: Boolean = true
 )
 
 sealed interface BleState {
@@ -95,6 +99,13 @@ class BleController(context: Context) {
 
     private val _lastNotify = MutableStateFlow<String?>(null)
     val lastNotify: StateFlow<String?> = _lastNotify.asStateFlow()
+
+    /** 「设备特征收集」读到的 GATT 结构，连上再断开，不下发任何控制帧 */
+    private val _dump = MutableStateFlow<String?>(null)
+    val dump: StateFlow<String?> = _dump.asStateFlow()
+
+    private var inspecting = false
+    private var inspectJob: Job? = null
 
     /**
      * 只保留“最新一帧组”。拖动滑杆/声控时更新远快于蓝牙写入，
@@ -212,7 +223,28 @@ class BleController(context: Context) {
             if (name.isBlank()) return
             val uuids = record?.serviceUuids?.map { it.uuid.toString() } ?: emptyList()
             val match = ToyCatalog.match(name, uuids)
-            val item = ScanItem(name, result.device.address, result.rssi, uuids, match)
+            val manufacturer = HashMap<Int, String>()
+            record?.manufacturerSpecificData?.let { arr ->
+                for (i in 0 until arr.size()) manufacturer[arr.keyAt(i)] = hexBytes(arr.valueAt(i))
+            }
+            val serviceData = record?.serviceData
+                ?.entries
+                ?.associate { it.key.uuid.toString() to hexBytes(it.value) }
+                ?: emptyMap()
+            val item = ScanItem(
+                name = name,
+                address = result.device.address,
+                rssi = result.rssi,
+                services = uuids,
+                match = match,
+                manufacturer = manufacturer,
+                serviceData = serviceData,
+                connectable = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    result.isConnectable
+                } else {
+                    true
+                }
+            )
             val list = _devices.value.toMutableList()
             val idx = list.indexOfFirst { it.address == item.address }
             if (idx >= 0) list[idx] = item else list.add(item)
@@ -315,11 +347,18 @@ class BleController(context: Context) {
     }
 
     // --------------------------------------------------------------- connect
-    fun connect(item: ScanItem, protocol: ProtocolSpec?) {
+
+    /** 每次发起连接自增。取消/重连后，上一轮的 connectGatt 回调据此作废。 */
+    private var connectGen = 0
+
+    fun connect(item: ScanItem, protocol: ProtocolSpec?, inspectOnly: Boolean = false) {
         val a = adapter ?: return
         if (_state.value is BleState.Connecting) return
         stopScan()
         closeGatt()
+        inspecting = inspectOnly
+        _dump.value = null
+        val gen = ++connectGen
         _state.value = BleState.Connecting(item.name, item.address)
         connectedAddress = item.address
         connectedName = item.name
@@ -331,6 +370,17 @@ class BleController(context: Context) {
         mpUsesTx = false
         mpGeneric0 = false
         handshakeDone = CompletableDeferred()
+        if (inspectOnly) {
+            // 只读结构，连不上也别干等
+            inspectJob?.cancel()
+            inspectJob = scope.launch {
+                delay(12_000)
+                if (gen == connectGen && inspecting) {
+                    finishInspect()
+                    _state.value = BleState.Failed("读取超时：设备没有回应")
+                }
+            }
+        }
         val device: BluetoothDevice = try {
             a.getRemoteDevice(item.address)
         } catch (e: Exception) {
@@ -340,17 +390,85 @@ class BleController(context: Context) {
         // 上一次的 GATT 刚 close，等一拍再连，否则部分手机栈会返回一个死连接
         scope.launch {
             delay(180)
-            if (_state.value !is BleState.Connecting) return@launch
-            try {
-                gatt = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            if (gen != connectGen || _state.value !is BleState.Connecting) return@launch
+            val created = try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                     device.connectGatt(appContext, false, gattCallback, BluetoothDevice.TRANSPORT_LE)
                 } else {
                     device.connectGatt(appContext, false, gattCallback)
                 }
             } catch (e: Exception) {
-                _state.value = BleState.Failed("连接失败：${e.message ?: "未知错误"}")
+                if (gen == connectGen) _state.value = BleState.Failed("连接失败：${e.message ?: "未知错误"}")
+                return@launch
+            }
+            // 这 180ms 里用户可能已经点了取消
+            if (gen != connectGen) {
+                runCatching {
+                    created.disconnect()
+                    created.close()
+                }
+                return@launch
+            }
+            gatt = created
+        }
+    }
+
+    /** 连接中手动取消：不用干等超时 */
+    fun cancelConnect() {
+        if (_state.value !is BleState.Connecting) return
+        connectGen++
+        inspectJob?.cancel()
+        inspectJob = null
+        inspecting = false
+        closeGatt()
+        connectedAddress = null
+        connectedName = null
+        _state.value = BleState.Idle
+        addLog(TxLog.Dir.SYS, ByteArray(0), "已取消连接")
+    }
+
+    /**
+     * 只连接、读一遍 service / characteristic 结构就断开。
+     * 给「设备特征收集」用：未收录的设备靠这份结构判断协议，全程不发控制帧。
+     */
+    fun inspect(item: ScanItem) {
+        connect(item, null, inspectOnly = true)
+    }
+
+    private fun finishInspect() {
+        inspecting = false
+        inspectJob?.cancel()
+        inspectJob = null
+    }
+
+    /** 读不了 GATT（没蓝牙 / 没开蓝牙）时给 UI 一个明确失败，好退回广播信息 */
+    fun failInspect(reason: String) {
+        finishInspect()
+        _state.value = BleState.Failed(reason)
+    }
+
+    private fun describeGatt(g: BluetoothGatt): String = buildString {
+        val services = g.services ?: emptyList()
+        appendLine("services=${services.size}")
+        services.forEach { s ->
+            appendLine("service ${s.uuid}")
+            s.characteristics.forEach { c ->
+                appendLine("  char ${c.uuid} [${propertyNames(c.properties)}]")
+                c.descriptors?.forEach { d -> appendLine("    desc ${d.uuid}") }
             }
         }
+    }
+
+    private fun propertyNames(props: Int): String {
+        val out = mutableListOf<String>()
+        if (props and BluetoothGattCharacteristic.PROPERTY_READ != 0) out += "READ"
+        if (props and BluetoothGattCharacteristic.PROPERTY_WRITE != 0) out += "WRITE"
+        if (props and BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE != 0) out += "WRITE_NO_RSP"
+        if (props and BluetoothGattCharacteristic.PROPERTY_NOTIFY != 0) out += "NOTIFY"
+        if (props and BluetoothGattCharacteristic.PROPERTY_INDICATE != 0) out += "INDICATE"
+        if (props and BluetoothGattCharacteristic.PROPERTY_SIGNED_WRITE != 0) out += "SIGNED_WRITE"
+        if (props and BluetoothGattCharacteristic.PROPERTY_BROADCAST != 0) out += "BROADCAST"
+        return if (out.isEmpty()) "NONE" else out.joinToString("|")
     }
 
     fun updateKeepAlive(ms: Long) {
@@ -366,8 +484,12 @@ class BleController(context: Context) {
             } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
                 writeChar = null
                 notifyChar = null
+                val wasInspecting = inspecting
+                if (wasInspecting) finishInspect()
                 if (_state.value is BleState.Ready || _state.value is BleState.Connecting) {
-                    _state.value = BleState.Failed("连接已断开")
+                    _state.value = BleState.Failed(
+                        if (wasInspecting) "设备拒绝连接，只能靠广播信息判断" else "连接已断开"
+                    )
                 }
             }
         }
@@ -375,7 +497,21 @@ class BleController(context: Context) {
         override fun onServicesDiscovered(g: BluetoothGatt, status: Int) {
             if (g !== gatt) return
             if (status != BluetoothGatt.GATT_SUCCESS) {
+                if (inspecting) finishInspect()
                 _state.value = BleState.Failed("服务发现失败 ($status)")
+                return
+            }
+            // 特征收集：拿到结构就够了，不发任何控制帧，直接断开
+            if (inspecting) {
+                _dump.value = describeGatt(g)
+                addLog(TxLog.Dir.SYS, ByteArray(0), "已读取 GATT 结构")
+                scope.launch {
+                    delay(150)
+                    if (!inspecting) return@launch
+                    finishInspect()
+                    closeGatt()
+                    _state.value = BleState.Idle
+                }
                 return
             }
             try {
@@ -664,6 +800,8 @@ class BleController(context: Context) {
     }
 
     fun disconnect() {
+        connectGen++
+        finishInspect()
         closeGatt()
         connectedAddress = null
         connectedName = null
@@ -671,3 +809,5 @@ class BleController(context: Context) {
         addLog(TxLog.Dir.SYS, ByteArray(0), "已断开")
     }
 }
+
+private fun hexBytes(bytes: ByteArray): String = bytes.joinToString(" ") { "%02X".format(it) }

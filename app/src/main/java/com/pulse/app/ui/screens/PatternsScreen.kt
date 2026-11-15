@@ -83,22 +83,41 @@ fun PatternsScreen(vm: PulseViewModel) {
 
     var editorOpen by remember { mutableStateOf(false) }
     var scale by remember { mutableFloatStateOf(1f) }
-    var sync by remember { mutableStateOf(true) }
+    val sync by vm.patternSync.collectAsState()
+    val patternTargets by vm.patternTargets.collectAsState()
     val selected = remember { mutableStateListOf<String>() }
     val chipsScroll = rememberScrollState()
+    var seededFor by remember { mutableStateOf<List<String>>(emptyList()) }
 
-    // 默认选中第一个振动通道
-    LaunchedEffect(modules) {
-        if (selected.isEmpty()) {
-            val first = modules.firstOrNull { it.type == ModuleType.VIBRATE } ?: modules.firstOrNull()
-            first?.let { selected.add(it.key) }
+    // 通道选择跟着设备走：换设备时恢复该设备上次的选择，没有记录才默认选第一路振动
+    LaunchedEffect(modules, patternTargets) {
+        val keys = modules.map { it.key }
+        val valid = patternTargets.filter { it in keys }
+        when {
+            valid.isNotEmpty() -> {
+                if (valid != selected.toList()) {
+                    selected.clear()
+                    selected.addAll(valid)
+                }
+                seededFor = keys
+            }
+
+            // 用户手动把通道全关了：不要把默认值又加回去
+            seededFor == keys -> selected.retainAll { it in keys }
+
+            else -> {
+                selected.clear()
+                val first = modules.firstOrNull { it.type == ModuleType.VIBRATE }
+                    ?: modules.firstOrNull()
+                first?.let { selected.add(it.key) }
+                seededFor = keys
+            }
         }
-        selected.retainAll { key -> modules.any { it.key == key } }
     }
 
     fun toggle(key: String) {
         if (selected.contains(key)) selected.remove(key) else selected.add(key)
-        if (play != null) vm.setPatternTarget(selected.toList(), sync)
+        vm.setPatternTarget(selected.toList(), sync)
     }
 
     LazyColumn(
@@ -183,9 +202,8 @@ fun PatternsScreen(vm: PulseViewModel) {
                     }
                     Switch(
                         checked = sync,
-                        onCheckedChange = {
-                            sync = it
-                            vm.setPatternTarget(selected.toList(), it)
+                        onCheckedChange = { on ->
+                            vm.setPatternTarget(selected.toList(), on)
                         },
                         colors = SwitchDefaults.colors(
                             checkedThumbColor = Color.White,

@@ -65,7 +65,8 @@ import com.pulse.app.ui.VSpace
 @Composable
 fun ManualAddDialog(vm: PulseViewModel, onDismiss: () -> Unit) {
     val ctx = LocalContext.current
-    val devices by vm.ble.devices.collectAsState()
+    // 采样过的列表：扫描回调太密，直接渲染会一直重排，点不中想点的那台
+    val devices by vm.manualDevices.collectAsState()
     val scanning by vm.ble.scanning.collectAsState()
     var selected by remember { mutableStateOf<ScanItem?>(null) }
     var pending by remember { mutableStateOf<(() -> Unit)?>(null) }
@@ -229,7 +230,11 @@ fun ManualAddDialog(vm: PulseViewModel, onDismiss: () -> Unit) {
                                 )
                             }
                             if (item.match != null) {
-                                Pill(item.match!!.protocol.brand, Palette.Violet)
+                                val match = item.match!!
+                                Pill(
+                                    if (match.weak) "可能是 ${match.protocol.brand}" else match.protocol.brand,
+                                    if (match.weak) Palette.TextDim else Palette.Violet
+                                )
                                 Spacer(Modifier.width(6.dp))
                             }
                             Icon(

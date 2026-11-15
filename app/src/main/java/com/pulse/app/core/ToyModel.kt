@@ -94,7 +94,32 @@ data class ToyMatch(
     val protocol: ProtocolSpec,
     val model: CatalogModel?,
     val confidence: Float,
-    val reason: String
+    val reason: String,
+    /**
+     * 仅凭通用/共用 UUID 判出来的结果。首页默认不显示，避免把电子价签、资产标签
+     * 这类同样使用 BLE 串口模块的设备当成玩具；手动添加里仍列出来备选。
+     */
+    val weak: Boolean = false
+)
+
+/**
+ * 国产 BLE 串口模块的默认服务，以及 Nordic UART 这类通用串口服务。
+ * 电子价签、资产标签、手环都在用，单凭它命中不足以判定是玩具。
+ *
+ * 注意别把品牌自己的服务写进来：Galaku / 杰士邦共用 0x1000、TryFun 用 FFAC、
+ * MagicMotion 用 78667579，这些虽然也只被玩具用，但换掉会直接丢掉真设备。
+ */
+private val GENERIC_BLE_UUIDS = setOf(
+    "0000ffe0-0000-1000-8000-00805f9b34fb",
+    "0000ffe5-0000-1000-8000-00805f9b34fb",
+    "0000ffe9-0000-1000-8000-00805f9b34fb",
+    "0000fff0-0000-1000-8000-00805f9b34fb",
+    "0000fff1-0000-1000-8000-00805f9b34fb",
+    "0000fff2-0000-1000-8000-00805f9b34fb",
+    "0000fff3-0000-1000-8000-00805f9b34fb",
+    "0000fff4-0000-1000-8000-00805f9b34fb",
+    "0000fff5-0000-1000-8000-00805f9b34fb",
+    "6e400001-b5a3-f393-e0a9-e50e24dcca9e"
 )
 
 object ToyCatalog {
@@ -249,19 +274,39 @@ object ToyCatalog {
         return best
     }
 
-    /** 用扫描响应里的 service UUID 识别（最可靠） */
+    /**
+     * 用扫描响应里的 service UUID 识别。
+     *
+     * 这里以前是「命中任一 UUID 就返回 0.8」，结果凡是用了 FFE0/FFF0 串口模块的
+     * 电子价签、资产标签、手环都被当成玩具。现在分两档：
+     * 命中品牌专属 UUID 照旧给高置信度；只命中通用串口服务只给弱匹配，
+     * 首页不展示，留给「手动添加」当候选。
+     */
     fun matchByServices(uuids: List<String>): ToyMatch? {
         if (uuids.isEmpty()) return null
         val set = uuids.map { it.lowercase() }
+        var weak: ToyMatch? = null
         for (p in all) {
-            if (p.services.any { set.contains(it) }) {
-                return ToyMatch(p, null, 0.8f, "服务 UUID")
+            val advertised = p.services.filter { set.contains(it) }
+            val fromProfile = p.profiles
+                .map { it.service.lowercase() }
+                .filter { set.contains(it) }
+            val hits = (advertised + fromProfile).distinct()
+            if (hits.isEmpty()) continue
+            // 同一台设备可能既广播了通用串口服务、又广播了品牌自己的服务，只要有一个专属的就够
+            if (hits.any { it !in GENERIC_BLE_UUIDS }) {
+                return ToyMatch(
+                    p,
+                    null,
+                    if (advertised.isNotEmpty()) 0.8f else 0.75f,
+                    if (advertised.isNotEmpty()) "服务 UUID" else "GATT 服务"
+                )
             }
-            if (p.profiles.any { set.contains(it.service.lowercase()) }) {
-                return ToyMatch(p, null, 0.75f, "GATT 服务")
+            if (weak == null) {
+                weak = ToyMatch(p, null, 0.5f, "通用串口服务", weak = true)
             }
         }
-        return null
+        return weak
     }
 
     fun match(name: String?, advertised: List<String>): ToyMatch? =
