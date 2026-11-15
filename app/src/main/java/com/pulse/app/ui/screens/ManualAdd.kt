@@ -131,7 +131,7 @@ fun ManualAddDialog(vm: PulseViewModel, onDismiss: () -> Unit) {
                     )
                     Text(
                         if (selected == null) {
-                            "列表里是附近所有蓝牙设备，选一个再指定类型"
+                            "这里只列没认出来的设备，已识别的会直接出现在首页"
                         } else {
                             "「${selected!!.name}」不在已知型号里，选一个品牌试试"
                         },
@@ -197,7 +197,7 @@ fun ManualAddDialog(vm: PulseViewModel, onDismiss: () -> Unit) {
 
                 if (devices.isEmpty()) {
                     Text(
-                        "还没有扫描到设备。让玩具开机，再点上面的扫描。",
+                        "附近没有待指定的设备。已识别的玩具会直接出现在首页「附近设备」里。",
                         style = MaterialTheme.typography.bodyMedium,
                         color = Palette.TextFaint
                     )

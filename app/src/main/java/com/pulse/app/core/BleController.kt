@@ -214,6 +214,13 @@ class BleController(context: Context) {
     private var scanRetryUsed = false
     private var scanRetryJob: Job? = null
 
+    /**
+     * 原始扫描缓冲。扫描回调一秒能来十几次，界面不需要这么密 ——
+     * 每秒推一次就够看出「它在工作」，也不会让条目在手指底下乱跑。
+     */
+    private val scanBuffer = java.util.concurrent.ConcurrentHashMap<String, ScanItem>()
+    private var publishJob: Job? = null
+
     private val scanCallback = object : ScanCallback() {
         override fun onScanResult(callbackType: Int, result: ScanResult) {
             scanRetryUsed = false
@@ -245,18 +252,12 @@ class BleController(context: Context) {
                     true
                 }
             )
-            val list = _devices.value.toMutableList()
-            val idx = list.indexOfFirst { it.address == item.address }
-            if (idx >= 0) list[idx] = item else list.add(item)
-            list.sortWith(
-                compareByDescending<ScanItem> { it.match != null }
-                    .thenByDescending { it.rssi }
-            )
-            _devices.value = list
+            scanBuffer[item.address] = item
         }
 
         override fun onScanFailed(errorCode: Int) {
             _scanning.value = false
+            publishJob?.cancel()
             addLog(TxLog.Dir.SYS, ByteArray(0), "扫描启动失败 errorCode=$errorCode")
             // 1 = SCAN_FAILED_ALREADY_STARTED：系统里还留着上一次的扫描注册。
             // 彻底停一次再重启，避免注册残留导致以后每次扫描都失败、只能杀进程重开。
@@ -290,6 +291,7 @@ class BleController(context: Context) {
         // 连接时 connect() 会 stopScan() 把 _scanning 置 false，
         // 所以「连接成功后点重新扫描」走的是下面的完整重启路径，不受影响。
         if (_scanning.value) {
+            scanBuffer.clear()
             _devices.value = emptyList()
             return
         }
@@ -313,6 +315,7 @@ class BleController(context: Context) {
             return
         }
         _devices.value = emptyList()
+        scanBuffer.clear()
         val settings = ScanSettings.Builder()
             .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
             .build()
@@ -325,10 +328,35 @@ class BleController(context: Context) {
             scanner.startScan(null, settings, scanCallback)
             _scanning.value = true
             _scanError.value = null
+            startPublishLoop()
         } catch (e: Exception) {
             _scanning.value = false
             _scanError.value = "扫描没启动成功，再点一次试试"
         }
+    }
+
+    /** 每秒把缓冲排序后推一次；同一条目在这期间只更新内容，不改变位置 */
+    private fun startPublishLoop() {
+        publishJob?.cancel()
+        publishJob = scope.launch {
+            while (isActive) {
+                delay(1000)
+                publishDevices()
+            }
+        }
+    }
+
+    /**
+     * RSSI 按 5 dBm 分桶：信号在同一档里波动不会换位置，跨档才挪。
+     * 桶内用名字和地址兜底，保证同一批设备每次顺序一致。
+     */
+    private fun publishDevices() {
+        _devices.value = scanBuffer.values.sortedWith(
+            compareByDescending<ScanItem> { it.match != null }
+                .thenByDescending { (it.rssi + 100) / 5 }
+                .thenBy { it.name.lowercase() }
+                .thenBy { it.address }
+        )
     }
 
     fun stopScan() {
@@ -336,9 +364,13 @@ class BleController(context: Context) {
         scanRetryJob = null
         scanRetryUsed = false
         stopScanInternal()
+        // 停止后补一次，保证列表和缓冲一致（连接前会调用到这里）
+        publishDevices()
     }
 
     private fun stopScanInternal() {
+        publishJob?.cancel()
+        publishJob = null
         try {
             adapter?.bluetoothLeScanner?.stopScan(scanCallback)
         } catch (_: Exception) {

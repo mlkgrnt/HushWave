@@ -16,7 +16,11 @@ import java.io.File
 import java.nio.ByteOrder
 import kotlin.math.abs
 import kotlin.math.ln
+import kotlin.math.pow
 import kotlin.math.sqrt
+
+/** 包络分析的目标采样率：够用就行，逐样本开销直接按比例下降 */
+private const val ANALYSIS_RATE = 11_025
 
 data class Song(
     val id: String,
@@ -164,9 +168,9 @@ class MusicLibrary(context: Context) {
             var pcmFloat = pcmIsFloat(format)
 
             // 隔帧取样的步长 + 对应的低通系数（保持同样的时间常数）
-            var step = if (sampleRate >= 88_000) 2 else 1
-            var alpha = if (step == 1) 0.05f else 0.0975f
-            var frameTarget = (sampleRate * 0.05f / step).toInt().coerceAtLeast(64)
+            var step = analysisStep(sampleRate)
+            var alpha = lowPassAlpha(step)
+            var frameTarget = frameTargetOf(sampleRate, step)
 
             val rmsList = ArrayList<Float>(2048)
             val bassList = ArrayList<Float>(2048)
@@ -215,9 +219,9 @@ class MusicLibrary(context: Context) {
                         channels = runCatching { f.getInteger(MediaFormat.KEY_CHANNEL_COUNT) }
                             .getOrDefault(channels)
                         pcmFloat = pcmIsFloat(f)
-                        step = if (sampleRate >= 88_000) 2 else 1
-                        alpha = if (step == 1) 0.05f else 0.0975f
-                        frameTarget = (sampleRate * 0.05f / step).toInt().coerceAtLeast(64)
+                        step = analysisStep(sampleRate)
+                        alpha = lowPassAlpha(step)
+                        frameTarget = frameTargetOf(sampleRate, step)
                     }
 
                     outIdx >= 0 -> {
@@ -315,7 +319,16 @@ class MusicLibrary(context: Context) {
                 else smooth + (raw - smooth) * 0.16f
                 out[i] = smooth
             }
-            out
+            // 降采样之后没必要再保留 50ms 级的毛刺：过一层 3 点平滑。
+            // 玩具那端的体感几乎没差别，但取样带来的抖动会被抹掉。
+            val finalOut = FloatArray(out.size)
+            for (i in out.indices) {
+                val a = out[if (i > 0) i - 1 else i]
+                val b = out[i]
+                val c = out[if (i + 1 < out.size) i + 1 else i]
+                finalOut[i] = (a + 2f * b + c) * 0.25f
+            }
+            finalOut
         } catch (e: Exception) {
             FloatArray(0)
         } finally {
@@ -329,6 +342,24 @@ class MusicLibrary(context: Context) {
     private fun pcmIsFloat(format: MediaFormat): Boolean = runCatching {
         format.getInteger(MediaFormat.KEY_PCM_ENCODING) == AudioFormat.ENCODING_PCM_FLOAT
     }.getOrDefault(false)
+
+    /**
+     * 分析用的降采样步长。
+     *
+     * 玩具能分辨的强度变化也就 10 Hz 上下，包络本身只要 20 fps —— 11 kHz 的分析率
+     * 足够保住响度、低频和瞬态。44.1 kHz 的素材逐样本工作量直接降到 1/4，
+     * 高解析素材降得更多。
+     */
+    private fun analysisStep(sampleRate: Int): Int =
+        ((sampleRate + ANALYSIS_RATE - 1) / ANALYSIS_RATE).coerceAtLeast(1)
+
+    /** 低通系数按步长换算，保证时间常数不随采样率变化 */
+    private fun lowPassAlpha(step: Int): Float =
+        if (step <= 1) 0.05f else 1f - (1f - 0.05f).pow(step)
+
+    /** 50ms 对应的「已处理帧数」 */
+    private fun frameTargetOf(sampleRate: Int, step: Int): Int =
+        (sampleRate.toFloat() / step * 0.05f).toInt().coerceAtLeast(64)
 
     private fun percentile(list: List<Float>, p: Float): Float {
         if (list.isEmpty()) return 0f

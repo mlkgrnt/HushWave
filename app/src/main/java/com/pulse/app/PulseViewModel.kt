@@ -33,6 +33,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -115,34 +116,14 @@ class PulseViewModel(app: Application) : AndroidViewModel(app) {
     val savedToys: StateFlow<List<ToyRecord>> = _savedToys.asStateFlow()
 
     /**
-     * 「手动添加设备」用的列表。
+     * 「手动添加」只用得上没认出来的设备：能明确识别的已经在首页「附近设备」里了，
+     * 不必再占一遍位置。弱匹配（只有通用串口 UUID）的留在这里，等用户指定品牌。
      *
-     * 扫描回调一秒能来十几次，直接渲染会让列表一直重排 —— 手指还没落下去条目就跑了。
-     * 这里按 1.2 秒采一次样，并且把 RSSI 按 10 dBm 分桶再排：只有信号真的跨档才挪位置，
-     * 同一桶内用名字和地址兜底，顺序是定的。
+     * 排序交给 BleController 每秒推一次的稳定快照，这里不再单独采样。
      */
-    val manualDevices: StateFlow<List<ScanItem>> = MutableStateFlow<List<ScanItem>>(emptyList())
-        .also { out ->
-            viewModelScope.launch {
-                while (true) {
-                    delay(1200)
-                    if (ble.scanning.value) out.value = stableOrder(ble.devices.value)
-                }
-            }
-            viewModelScope.launch {
-                ble.scanning.collect { scanning ->
-                    if (!scanning) out.value = stableOrder(ble.devices.value)
-                }
-            }
-        }
-        .asStateFlow()
-
-    private fun stableOrder(list: List<ScanItem>): List<ScanItem> = list.sortedWith(
-        compareByDescending<ScanItem> { it.match != null }
-            .thenByDescending { (it.rssi + 100) / 10 }
-            .thenBy { it.name.lowercase() }
-            .thenBy { it.address }
-    )
+    val manualDevices: StateFlow<List<ScanItem>> = ble.devices
+        .map { list -> list.filter { it.match == null || it.match?.weak == true } }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     val brands: List<String> get() = ToyCatalog.brands
     val protocolCount: Int get() = ToyCatalog.protocols.size

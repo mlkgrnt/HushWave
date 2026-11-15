@@ -866,7 +866,7 @@ private fun DialogLogs(crash: String?, logs: List<TxLog>, onDismiss: () -> Unit)
 private fun DeviceReportDialog(vm: PulseViewModel, onDismiss: () -> Unit) {
     val ctx = LocalContext.current
     val clipboard = LocalClipboardManager.current
-    val devices by vm.manualDevices.collectAsState()
+    val devices by vm.ble.devices.collectAsState()
     val scanning by vm.ble.scanning.collectAsState()
     val dump by vm.ble.dump.collectAsState()
     val bleState by vm.ble.state.collectAsState()
