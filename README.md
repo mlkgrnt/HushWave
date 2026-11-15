@@ -13,7 +13,7 @@
 
 ## 能做什么
 
-- **多品牌直连**：Galaku、Svakom（v1–v6）、Lovense、We-Vibe（8bit）、MagicMotion（v1–v4）、Kiiroo（v2.1）、Satisfyer、小怪兽 MonsterPub、网易春风 TryFun、杰士邦 Jissbon
+- **多品牌直连**：Galaku、Svakom（v1–v6）、Lovense、We-Vibe（8bit）、MagicMotion（v1–v4）、Kiiroo（v2.1）、Satisfyer、小怪兽 MonsterPub、网易春风 TryFun、杰士邦（小粉饼）
 - **玩具记忆**：按蓝牙地址记住品牌 / 协议 / 通道 / 上次设置，下次连上自动恢复
 - **模式记忆**：脉冲 / 摇一摇 / 波形 / 声控 / 音乐 各自作用于哪些通道，也按玩具分别记住
 - **通道化控制**：振动、旋转、摆动、气阀、吮吸、抽插、气泵、电击（含频率）、加热、灯效
@@ -44,7 +44,7 @@
 | 网易春风 | `tryfun` | 元系列摆动 / 旋转；TF-SPRAY 用 9 字节振动帧 |
 | 网易春风 | `tryfun-meta2` | Meta 2：包头号 + `21 05 08/0B/0E` + 速度 + 校验和 |
 | 网易春风 | `tryfun-blackhole` | 黑洞 Plus / Rock：包头号 + `03 09/0C` + 速度 + 校验和 |
-| 杰士邦 Jissbon | `jissbon` | 小粉饼 / `G29D` 复用 Galaku OEM 帧，双振动通道；其它型号走手动添加 |
+| 杰士邦-小粉饼 | `jissbon` | 目前只支持小粉饼 / `G29D`（复用 Galaku OEM 帧，双振动通道）；杰士邦其它型号暂未覆盖 |
 
 设备定义来自 buttplug 的 `buttplug-device-config-v5`（BSD-3-Clause），抽取成 `app/src/main/assets/toy_catalog.json`；
 伽拉库私有协议来自官方 App 反编译。细节见 [docs/PROTOCOL.md](docs/PROTOCOL.md)。

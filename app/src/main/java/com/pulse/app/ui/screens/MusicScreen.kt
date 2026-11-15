@@ -46,6 +46,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -73,6 +74,7 @@ fun MusicDialog(vm: PulseViewModel, onDismiss: () -> Unit) {
     val intensity by vm.songIntensity.collectAsState()
     val busy by vm.songBusy.collectAsState()
     val targets by vm.songTargets.collectAsState()
+    val canControl by vm.canControl.collectAsState()
     val modules by vm.engine.modules.collectAsState()
 
     val picker = rememberLauncherForActivityResult(
@@ -127,6 +129,7 @@ fun MusicDialog(vm: PulseViewModel, onDismiss: () -> Unit) {
                     playing = playing,
                     position = position,
                     intensity = intensity,
+                    enabled = canControl,
                     onToggle = { vm.toggleSong() },
                     onStop = { vm.stopSong() },
                     onSeek = { vm.seekSong(it) }
@@ -134,7 +137,7 @@ fun MusicDialog(vm: PulseViewModel, onDismiss: () -> Unit) {
                 VSpace(14.dp)
             }
 
-            if (modules.isNotEmpty()) {
+            if (canControl) {
                 Text("作用于", style = MaterialTheme.typography.labelSmall, color = Palette.TextFaint)
                 VSpace(8.dp)
                 Row(
@@ -176,6 +179,15 @@ fun MusicDialog(vm: PulseViewModel, onDismiss: () -> Unit) {
                 VSpace(16.dp)
             }
 
+            if (!canControl) {
+                Text(
+                    "先连接玩具，音乐才有作用对象。",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Palette.TextFaint
+                )
+                VSpace(16.dp)
+            }
+
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("曲库", style = MaterialTheme.typography.titleMedium, color = Palette.Text)
                 Spacer(Modifier.weight(1f))
@@ -209,6 +221,7 @@ fun MusicDialog(vm: PulseViewModel, onDismiss: () -> Unit) {
                             song = s,
                             active = song?.id == s.id,
                             playing = playing && song?.id == s.id,
+                            enabled = canControl,
                             onPlay = { vm.playSong(s) },
                             onDelete = { vm.deleteSong(s) }
                         )
@@ -226,6 +239,7 @@ private fun NowPlaying(
     playing: Boolean,
     position: Long,
     intensity: Float,
+    enabled: Boolean = true,
     onToggle: () -> Unit,
     onStop: () -> Unit,
     onSeek: (Float) -> Unit
@@ -259,9 +273,10 @@ private fun NowPlaying(
             Box(
                 Modifier
                     .size(42.dp)
+                    .alpha(if (enabled) 1f else 0.4f)
                     .clip(RoundedCornerShape(14.dp))
                     .background(Palette.overlay(0.07f))
-                    .clickable(onClick = onToggle),
+                    .clickable(enabled = enabled, onClick = onToggle),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
@@ -274,9 +289,10 @@ private fun NowPlaying(
             Box(
                 Modifier
                     .size(42.dp)
+                    .alpha(if (enabled) 1f else 0.4f)
                     .clip(RoundedCornerShape(14.dp))
                     .background(Palette.Rose.copy(alpha = 0.14f))
-                    .clickable(onClick = onStop),
+                    .clickable(enabled = enabled, onClick = onStop),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(Icons.Rounded.Stop, null, tint = Palette.Rose)
@@ -387,15 +403,17 @@ private fun SongRow(
     song: Song,
     active: Boolean,
     playing: Boolean,
+    enabled: Boolean = true,
     onPlay: () -> Unit,
     onDelete: () -> Unit
 ) {
     Row(
         Modifier
             .fillMaxWidth()
+            .alpha(if (enabled) 1f else 0.45f)
             .clip(RoundedCornerShape(18.dp))
             .background(if (active) Palette.Violet.copy(alpha = 0.12f) else Palette.overlay(0.04f))
-            .clickable(onClick = onPlay)
+            .clickable(enabled = enabled, onClick = onPlay)
             .padding(horizontal = 14.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {

@@ -70,6 +70,16 @@ class PulseViewModel(app: Application) : AndroidViewModel(app) {
     private val _activeRecord = MutableStateFlow<ToyRecord?>(null)
     val activeRecord: StateFlow<ToyRecord?> = _activeRecord.asStateFlow()
 
+    /**
+     * 「有东西可下发」才算能控制：已连上，或调试预览里已经装好通道。
+     * 断开后 engine 的通道会被清空，于是控制 / 波形 / 声控 / 音乐这几处的
+     * 通道选择和按钮统一跟着变灰，不用各页面各自判断连接状态。
+     */
+    val canControl: StateFlow<Boolean> =
+        combine(ble.state, engine.modules, engine.demo) { st, mods, demo ->
+            mods.isNotEmpty() && (st is BleState.Ready || demo)
+        }.stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
     private val _musicSync = MutableStateFlow(false)
     val musicSync: StateFlow<Boolean> = _musicSync.asStateFlow()
 
@@ -152,8 +162,16 @@ class PulseViewModel(app: Application) : AndroidViewModel(app) {
                     }
 
                     is BleState.Failed -> {
+                        // 连接失败 / 中途掉线：通道已经没有意义了，清掉，
+                        // 否则控制页还留着一排推不动的滑杆。
+                        if (engine.modules.value.isNotEmpty()) clearLinkState()
                         engine.setDemo(true)
                         _toast.value = st.reason
+                    }
+
+                    is BleState.Idle -> {
+                        // 手动断开由 disconnect() 自己收尾，这里只兜「不知道谁断的」的情况
+                        if (engine.modules.value.isNotEmpty() && !engine.demo.value) clearLinkState()
                     }
 
                     else -> Unit
@@ -395,34 +413,33 @@ class PulseViewModel(app: Application) : AndroidViewModel(app) {
     fun cancelConnect() {
         if (ble.state.value !is BleState.Connecting) return
         ble.cancelConnect()
+        clearLinkState()
+        _toast.value = "已取消连接"
+    }
+
+    /**
+     * 回到「什么都没连」的状态：停掉所有正在跑的东西、清空通道与模式目标。
+     * 断开 / 掉线 / 取消连接都走这里，避免各条路径漏清某一样。
+     */
+    private fun clearLinkState() {
         player.stop()
-        engine.setDemo(true)
+        music.stop()
+        _musicSync.value = false
+        if (_shakeMode.value) setShakeMode(false)
         engine.configure(null, null, emptyList(), null)
-        _activeRecord.value = null
-        modeAddress = null
         _quickTargets.value = emptySet()
         _voiceTargets.value = emptySet()
         _songTargets.value = emptySet()
         _patternTargets.value = emptyList()
-        _toast.value = "已取消连接"
+        modeAddress = null
+        _activeRecord.value = null
     }
 
     fun disconnect() {
         persistNow()
         persistModes()
         ble.disconnect()
-        player.stop()
-        music.stop()
-        _musicSync.value = false
-        if (_shakeMode.value) setShakeMode(false)
-        engine.setDemo(true)
-        engine.configure(null, null, emptyList(), null)
-        _quickTargets.value = emptySet()
-        _voiceTargets.value = emptySet()
-        _songTargets.value = emptySet()
-        _patternTargets.value = emptyList()
-        modeAddress = null
-        _activeRecord.value = null
+        clearLinkState()
     }
 
     /** 手动换协议（识别错或未知型号时） */

@@ -237,8 +237,17 @@ object ToyCatalog {
 
     val protocols: List<ProtocolSpec> get() = all
 
+    /**
+     * 品牌筛选的顺序：这几个牌子国内最常见，放前面少滚两屏；
+     * 其余保持 catalog 里的原始顺序，免得每次更新 catalog 都打乱用户的肌肉记忆。
+     */
+    private val COMMON_BRANDS = listOf("Svakom", "小怪兽", "网易春风", "Galaku")
+
     val brands: List<String>
-        get() = all.map { it.brand }.distinct()
+        get() {
+            val allBrands = all.map { it.brand }.distinct()
+            return COMMON_BRANDS.filter { it in allBrands } + allBrands.filter { it !in COMMON_BRANDS }
+        }
 
     fun find(id: String): ProtocolSpec? = all.firstOrNull { it.id == id }
 

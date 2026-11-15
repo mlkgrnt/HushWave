@@ -40,6 +40,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -80,6 +81,7 @@ fun ControlScreen(vm: PulseViewModel) {
     val quickTargets by vm.quickTargets.collectAsState()
     val masterActive by vm.engine.masterActive.collectAsState()
     val masterValue by vm.engine.masterValue.collectAsState()
+    val canControl by vm.canControl.collectAsState()
 
 
     val connected = bleState is BleState.Ready
@@ -105,7 +107,7 @@ fun ControlScreen(vm: PulseViewModel) {
                 Column(Modifier.weight(1f)) {
                     Text(
                         model?.shortName ?: record?.modelName?.let { stripBrand(it, record?.brand ?: "") }
-                        ?: if (demo) "预览" else "未连接",
+                        ?: if (demo && modules.isNotEmpty()) "预览" else "未连接",
                         style = MaterialTheme.typography.headlineMedium,
                         color = Palette.Text
                     )
@@ -151,11 +153,11 @@ fun ControlScreen(vm: PulseViewModel) {
             GlassCard(Modifier.fillMaxWidth(), glow = true, padding = 18.dp) {
                 if (primary != null) {
                     GlowSlider(
-                        label = "强度（总）",
+                        label = "强度 - 同步控制",
                         value = if (masterActive) masterValue else 0f,
                         onChange = { vm.setMaster(it) },
                         accent = Palette.Violet,
-                        valueText = if (masterActive) "${(masterValue * 100).roundToInt()}%" else "单通道接管"
+                        valueText = if (masterActive) "${(masterValue * 100).roundToInt()}%" else "手动控制接管"
                     )
                 } else {
                     Text(
@@ -199,6 +201,7 @@ fun ControlScreen(vm: PulseViewModel) {
                     title = "脉冲",
                     icon = Icons.Rounded.Bolt,
                     tint = Palette.Cyan,
+                    enabled = canControl,
                     modifier = Modifier.weight(1f)
                 ) { vm.pulse() }
                 ActionTile(
@@ -206,10 +209,11 @@ fun ControlScreen(vm: PulseViewModel) {
                     icon = Icons.Rounded.Vibration,
                     tint = if (shake) Palette.Violet else Palette.TextDim,
                     active = shake,
+                    enabled = canControl,
                     modifier = Modifier.weight(1f)
                 ) { vm.setShakeMode(!shake) }
             }
-            if (modules.isNotEmpty()) {
+            if (canControl && modules.isNotEmpty()) {
                 VSpace(12.dp)
                 Text(
                     "摇一摇 / 脉冲 作用于",
@@ -362,11 +366,13 @@ private fun ActionTile(
     tint: Color,
     modifier: Modifier = Modifier,
     active: Boolean = false,
+    enabled: Boolean = true,
     onClick: () -> Unit
 ) {
     Box(
         modifier
             .height(58.dp)
+            .alpha(if (enabled) 1f else 0.35f)
             .clip(RoundedCornerShape(18.dp))
             .background(if (active) tint.copy(alpha = 0.14f) else Palette.overlay(0.045f))
             .border(
@@ -374,7 +380,7 @@ private fun ActionTile(
                 if (active) tint.copy(alpha = 0.45f) else Palette.overlay(0.06f),
                 RoundedCornerShape(18.dp)
             )
-            .clickable(onClick = onClick),
+            .clickable(enabled = enabled, onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {

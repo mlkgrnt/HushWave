@@ -48,6 +48,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
@@ -80,6 +81,7 @@ fun PatternsScreen(vm: PulseViewModel) {
     val custom by vm.customPatterns.collectAsState()
     val play by vm.player.state.collectAsState()
     val modules by vm.engine.modules.collectAsState()
+    val canControl by vm.canControl.collectAsState()
 
     var editorOpen by remember { mutableStateOf(false) }
     var scale by remember { mutableFloatStateOf(1f) }
@@ -143,75 +145,76 @@ fun PatternsScreen(vm: PulseViewModel) {
 
         item {
             GlassCard(Modifier.fillMaxWidth(), padding = 15.dp) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                if (!canControl) {
                     Text(
-                        "作用于",
-                        style = MaterialTheme.typography.labelSmall,
+                        "先连接玩具，这里会列出它可以动的通道。",
+                        style = MaterialTheme.typography.bodyMedium,
                         color = Palette.TextFaint
                     )
-                    Spacer(Modifier.width(8.dp))
-                    Row(
-                        Modifier
-                            .weight(1f)
-                            .horizontalScroll(chipsScroll),
-                        horizontalArrangement = Arrangement.spacedBy(7.dp)
-                    ) {
-                        if (modules.isEmpty()) {
-                            Text(
-                                "先连接玩具",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = Palette.TextFaint
-                            )
-                        }
-                        modules.forEach { spec ->
-                            val on = selected.contains(spec.key)
-                            Box(
-                                Modifier
-                                    .clip(RoundedCornerShape(11.dp))
-                                    .background(
-                                        if (on) Palette.Violet.copy(alpha = 0.18f)
-                                        else Palette.overlay(0.04f)
+                } else {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            "作用于",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Palette.TextFaint
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Row(
+                            Modifier
+                                .weight(1f)
+                                .horizontalScroll(chipsScroll),
+                            horizontalArrangement = Arrangement.spacedBy(7.dp)
+                        ) {
+                            modules.forEach { spec ->
+                                val on = selected.contains(spec.key)
+                                Box(
+                                    Modifier
+                                        .clip(RoundedCornerShape(11.dp))
+                                        .background(
+                                            if (on) Palette.Violet.copy(alpha = 0.18f)
+                                            else Palette.overlay(0.04f)
+                                        )
+                                        .border(
+                                            1.dp,
+                                            if (on) Palette.Violet.copy(alpha = 0.5f)
+                                            else Palette.overlay(0.06f),
+                                            RoundedCornerShape(11.dp)
+                                        )
+                                        .clickable { toggle(spec.key) }
+                                        .padding(horizontal = 12.dp, vertical = 7.dp)
+                                ) {
+                                    Text(
+                                        spec.label,
+                                        style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 0.sp),
+                                        color = if (on) Palette.Violet else Palette.TextDim
                                     )
-                                    .border(
-                                        1.dp,
-                                        if (on) Palette.Violet.copy(alpha = 0.5f)
-                                        else Palette.overlay(0.06f),
-                                        RoundedCornerShape(11.dp)
-                                    )
-                                    .clickable { toggle(spec.key) }
-                                    .padding(horizontal = 12.dp, vertical = 7.dp)
-                            ) {
-                                Text(
-                                    spec.label,
-                                    style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 0.sp),
-                                    color = if (on) Palette.Violet else Palette.TextDim
-                                )
+                                }
                             }
                         }
                     }
-                }
-                VSpace(10.dp)
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        Text("同步", style = MaterialTheme.typography.labelLarge, color = Palette.TextDim)
-                        Text(
-                            if (sync) "选中的通道一起动" else "按顺序错开，形成波浪",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = Palette.TextFaint
+                    VSpace(10.dp)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text("同步", style = MaterialTheme.typography.labelLarge, color = Palette.TextDim)
+                            Text(
+                                if (sync) "选中的通道一起动" else "按顺序错开，形成波浪",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = Palette.TextFaint
+                            )
+                        }
+                        Switch(
+                            checked = sync,
+                            onCheckedChange = { on ->
+                                vm.setPatternTarget(selected.toList(), on)
+                            },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = Color.White,
+                                checkedTrackColor = Palette.VioletDeep,
+                                uncheckedThumbColor = Palette.TextFaint,
+                                uncheckedTrackColor = Palette.overlay(0.08f)
+                            )
                         )
                     }
-                    Switch(
-                        checked = sync,
-                        onCheckedChange = { on ->
-                            vm.setPatternTarget(selected.toList(), on)
-                        },
-                        colors = SwitchDefaults.colors(
-                            checkedThumbColor = Color.White,
-                            checkedTrackColor = Palette.VioletDeep,
-                            uncheckedThumbColor = Palette.TextFaint,
-                            uncheckedTrackColor = Palette.overlay(0.08f)
-                        )
-                    )
                 }
             }
             VSpace(18.dp)
@@ -294,6 +297,7 @@ fun PatternsScreen(vm: PulseViewModel) {
                             PatternCard(
                                 pattern = p,
                                 active = play?.pattern?.id == p.id,
+                                enabled = canControl,
                                 modifier = Modifier.weight(1f)
                             ) {
                                 if (selected.isNotEmpty()) {
@@ -356,7 +360,8 @@ fun PatternsScreen(vm: PulseViewModel) {
                         GlassCard(
                             Modifier
                                 .fillMaxWidth()
-                                .clickable {
+                                .alpha(if (canControl) 1f else 0.4f)
+                                .clickable(enabled = canControl) {
                                     if (selected.isNotEmpty()) {
                                         vm.playPattern(p, scale, selected.toList(), sync)
                                     }
@@ -415,10 +420,12 @@ private fun PatternCard(
     pattern: Pattern,
     active: Boolean,
     modifier: Modifier = Modifier,
+    enabled: Boolean = true,
     onClick: () -> Unit
 ) {
     Column(
         modifier
+            .alpha(if (enabled) 1f else 0.4f)
             .clip(RoundedCornerShape(20.dp))
             .background(if (active) Palette.Violet.copy(alpha = 0.13f) else Palette.CardSolid)
             .border(
@@ -426,7 +433,7 @@ private fun PatternCard(
                 if (active) Palette.Violet.copy(alpha = 0.5f) else Palette.overlay(0.06f),
                 RoundedCornerShape(20.dp)
             )
-            .clickable(onClick = onClick)
+            .clickable(enabled = enabled, onClick = onClick)
             .padding(14.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {

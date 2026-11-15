@@ -102,6 +102,7 @@ fun MoreScreen(vm: PulseViewModel) {
     val record by vm.activeRecord.collectAsState()
     val modules by vm.engine.modules.collectAsState()
     val voiceTargets by vm.voiceTargets.collectAsState()
+    val canControl by vm.canControl.collectAsState()
 
     var showLogs by remember { mutableStateOf(false) }
     var showManual by remember { mutableStateOf(false) }
@@ -288,6 +289,7 @@ fun MoreScreen(vm: PulseViewModel) {
                     Switch(
                         checked = musicSync,
                         onCheckedChange = { toggleMusic(it) },
+                        enabled = canControl,
                         colors = SwitchDefaults.colors(
                             checkedThumbColor = Color.White,
                             checkedTrackColor = Palette.VioletDeep,
@@ -323,7 +325,14 @@ fun MoreScreen(vm: PulseViewModel) {
                     style = MaterialTheme.typography.bodyMedium,
                     color = Palette.TextFaint
                 )
-                if (modules.isNotEmpty()) {
+                if (!canControl) {
+                    VSpace(10.dp)
+                    Text(
+                        "先连接玩具，声控才有作用对象。",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Palette.TextFaint
+                    )
+                } else if (modules.isNotEmpty()) {
                     VSpace(12.dp)
                     Text("作用于", style = MaterialTheme.typography.labelSmall, color = Palette.TextFaint)
                     VSpace(8.dp)
@@ -407,7 +416,7 @@ fun MoreScreen(vm: PulseViewModel) {
                 SectionHeader("关于", BuildConfig.VERSION_NAME)
                 Text(
                     "支持 Galaku、Svakom、Lovense、We-Vibe、MagicMotion、Kiiroo、Satisfyer，" +
-                        "以及小怪兽 MonsterPub、网易春风 TryFun、杰士邦 Jissbon。",
+                        "以及小怪兽 MonsterPub、网易春风 TryFun、杰士邦（目前只有小粉饼 G29D）。",
                     style = MaterialTheme.typography.bodyMedium,
                     color = Palette.TextDim
                 )
