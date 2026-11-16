@@ -91,6 +91,8 @@ fun PatternsScreen(vm: PulseViewModel) {
     val canControl by vm.canControl.collectAsState()
 
     var editorOpen by remember { mutableStateOf(false) }
+    /** 正在编辑的已有波形；null 表示新建 */
+    var editing by remember { mutableStateOf<Pattern?>(null) }
     var scale by remember { mutableFloatStateOf(1f) }
     val sync by vm.patternSync.collectAsState()
     val patternTargets by vm.patternTargets.collectAsState()
@@ -327,7 +329,7 @@ fun PatternsScreen(vm: PulseViewModel) {
                         .clip(RoundedCornerShape(12.dp))
                         .background(Palette.Violet.copy(alpha = 0.15f))
                         .border(1.dp, Palette.Violet.copy(alpha = 0.35f), RoundedCornerShape(12.dp))
-                        .clickable { editorOpen = true }
+                        .clickable { editing = null; editorOpen = true }
                         .padding(horizontal = 12.dp, vertical = 7.dp)
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -355,7 +357,7 @@ fun PatternsScreen(vm: PulseViewModel) {
                                     listOf(Palette.VioletDeep.copy(alpha = 0.9f), Color(0xFF3E7BFF).copy(alpha = 0.9f))
                                 )
                             )
-                            .clickable { editorOpen = true },
+                            .clickable { editing = null; editorOpen = true },
                         contentAlignment = Alignment.Center
                     ) {
                         Text("打开波形编辑器", style = MaterialTheme.typography.labelLarge, color = Color.White)
@@ -399,6 +401,24 @@ fun PatternsScreen(vm: PulseViewModel) {
                                     Modifier
                                         .size(30.dp)
                                         .clip(RoundedCornerShape(10.dp))
+                                        .clickable {
+                                            editing = p
+                                            editorOpen = true
+                                        },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        Icons.Rounded.Edit,
+                                        null,
+                                        tint = Palette.TextFaint,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+                                Spacer(Modifier.width(4.dp))
+                                Box(
+                                    Modifier
+                                        .size(30.dp)
+                                        .clip(RoundedCornerShape(10.dp))
                                         .clickable { vm.deleteCustom(p.id) },
                                     contentAlignment = Alignment.Center
                                 ) {
@@ -418,7 +438,10 @@ fun PatternsScreen(vm: PulseViewModel) {
     }
 
     if (editorOpen) {
-        WaveEditorDialog(vm, selected.toList(), sync) { editorOpen = false }
+        WaveEditorDialog(vm, selected.toList(), sync, editing) {
+            editorOpen = false
+            editing = null
+        }
     }
 }
 
@@ -475,22 +498,40 @@ private fun WaveEditorDialog(
     vm: PulseViewModel,
     targetKeys: List<String>,
     sync: Boolean,
+    initial: Pattern? = null,
     onDismiss: () -> Unit
 ) {
-    var tab by remember { mutableIntStateOf(0) }
-    val points = remember { mutableStateListOf<Pair<Float, Float>>() }
-    val layers = remember { mutableStateListOf(WaveLayer(amplitude = 0.85f)) }
+    // 编辑已有波形时：有配方就进函数页，没有配方（手绘）就把旧的采样点摊回曲线上
+    val startLayers = remember(initial) {
+        WaveMath.decode(initial?.recipe) ?: listOf(WaveLayer(amplitude = 0.85f))
+    }
+    var tab by remember(initial) {
+        mutableIntStateOf(if (initial?.recipe != null) 1 else 0)
+    }
+    val points = remember(initial) {
+        mutableStateListOf<Pair<Float, Float>>().apply {
+            val src = initial?.points
+            if (initial?.recipe == null && src != null && src.size >= 2) {
+                val last = (src.size - 1).toFloat()
+                src.forEachIndexed { i, v -> add(i / last to v) }
+            }
+        }
+    }
+    val layers = remember(initial) {
+        mutableStateListOf<WaveLayer>().apply { addAll(startLayers) }
+    }
     var expanded by remember { mutableIntStateOf(0) }
-    var name by remember { mutableStateOf("我的曲线") }
-    var duration by remember { mutableFloatStateOf(5f) }
+    var name by remember(initial) { mutableStateOf(initial?.name ?: "我的曲线") }
+    var duration by remember(initial) { mutableFloatStateOf((initial?.durationMs ?: 5000) / 1000f) }
 
     val durationMs = (duration * 1000).toInt()
     val curve = remember(layers.toList()) { WaveMath.synthesize(layers) }
     val tooFast = layers.any { it.primitive.periodic && WaveMath.hertz(it.cycles, durationMs) > 3f }
     val seam = layers.any { WaveMath.hasSeam(it) }
 
-    // 切标签时把默认名跟着换掉，用户自己改过就不动
+    // 切标签时把默认名跟着换掉；编辑已有波形时保留它原来的名字
     LaunchedEffect(tab) {
+        if (initial != null) return@LaunchedEffect
         if (tab == 1 && name == "我的曲线") name = "我的波形"
         if (tab == 0 && name == "我的波形") name = "我的曲线"
     }
@@ -505,10 +546,17 @@ private fun WaveEditorDialog(
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text("波形编辑器", style = MaterialTheme.typography.headlineMedium, color = Palette.Text)
                     Text(
-                        if (tab == 0) "手指在格子里拖动，横轴是时间，纵轴是强度"
-                        else "几个基础函数叠起来，调幅度、频率、相位",
+                        if (initial != null) "编辑波形" else "波形编辑器",
+                        style = MaterialTheme.typography.headlineMedium,
+                        color = Palette.Text
+                    )
+                    Text(
+                        when {
+                            initial != null -> "改完保存会覆盖这一条，不会多出一条"
+                            tab == 0 -> "手指在格子里拖动，横轴是时间，纵轴是强度"
+                            else -> "几个基础函数叠起来，调幅度、频率、相位"
+                        },
                         style = MaterialTheme.typography.bodyMedium,
                         color = Palette.TextFaint
                     )
@@ -644,13 +692,15 @@ private fun WaveEditorDialog(
                                 vm.saveCustom(
                                     name.ifBlank { "我的曲线" },
                                     durationMs,
-                                    points.toList()
+                                    points.toList(),
+                                    id = initial?.id
                                 )
                             } else {
                                 vm.saveSynthesis(
                                     name.ifBlank { "我的波形" },
                                     durationMs,
-                                    layers.toList()
+                                    layers.toList(),
+                                    id = initial?.id
                                 )
                             }
                             vm.playPattern(p, 1f, targetKeys, sync)
@@ -659,7 +709,7 @@ private fun WaveEditorDialog(
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        "保存并播放",
+                        if (initial != null) "保存修改" else "保存并播放",
                         style = MaterialTheme.typography.labelLarge,
                         color = if (ready) Color.White else Palette.TextFaint
                     )
@@ -667,8 +717,11 @@ private fun WaveEditorDialog(
             }
             VSpace(10.dp)
             Text(
-                if (tab == 0) "画得越密越顺滑；只有 1 个点无法生成曲线。"
-                else "第 1 层是基底，后面每层按自己的运算叠上去。",
+                when {
+                    initial != null -> "改完点「保存修改」会覆盖原来那条波形。"
+                    tab == 0 -> "画得越密越顺滑；只有 1 个点无法生成曲线。"
+                    else -> "第 1 层是基底，后面每层按自己的运算叠上去。"
+                },
                 style = MaterialTheme.typography.labelSmall,
                 color = Palette.TextFaint
             )

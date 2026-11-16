@@ -545,30 +545,52 @@ class PulseViewModel(app: Application) : AndroidViewModel(app) {
         player.setTargets(keys, sync)
     }
 
-    fun saveCustom(name: String, durationMs: Int, trace: List<Pair<Float, Float>>): Pattern {
-        val p = PresetLibrary.fromTrace(name, durationMs, trace)
-        val list = _customPatterns.value + p
-        _customPatterns.value = list
-        store.save(list)
-        _toast.value = "已保存「$name」"
+    /**
+     * 手绘波形。传 [id] 表示编辑已有条目：沿用原 id 原地覆盖，顺序不变；
+     * 不传就是新增。
+     */
+    fun saveCustom(
+        name: String,
+        durationMs: Int,
+        trace: List<Pair<Float, Float>>,
+        id: String? = null
+    ): Pattern {
+        val drawn = PresetLibrary.fromTrace(name, durationMs, trace)
+        val p = if (id != null) drawn.copy(id = id) else drawn
+        upsert(p)
+        _toast.value = if (id != null) "已更新「$name」" else "已保存「$name」"
         return p
     }
 
     /** 函数合成：采样成点保存，同时留一份配方，方便以后接着调 */
-    fun saveSynthesis(name: String, durationMs: Int, layers: List<WaveLayer>): Pattern {
+    fun saveSynthesis(
+        name: String,
+        durationMs: Int,
+        layers: List<WaveLayer>,
+        id: String? = null
+    ): Pattern {
         val p = Pattern(
-            id = "custom_${System.currentTimeMillis()}",
+            id = id ?: "custom_${System.currentTimeMillis()}",
             name = name,
             durationMs = durationMs.coerceIn(300, 30_000),
             points = WaveMath.synthesize(layers),
             tag = "函数",
             recipe = WaveMath.encode(layers)
         )
-        val list = _customPatterns.value + p
-        _customPatterns.value = list
-        store.save(list)
-        _toast.value = "已保存「$name」"
+        upsert(p)
+        _toast.value = if (id != null) "已更新「$name」" else "已保存「$name」"
         return p
+    }
+
+    private fun upsert(p: Pattern) {
+        val list = _customPatterns.value
+        val idx = list.indexOfFirst { it.id == p.id }
+        _customPatterns.value = if (idx >= 0) {
+            list.toMutableList().also { it[idx] = p }
+        } else {
+            list + p
+        }
+        store.save(_customPatterns.value)
     }
 
     fun deleteCustom(id: String) {
