@@ -14,6 +14,7 @@ import android.bluetooth.le.ScanResult
 import android.bluetooth.le.ScanSettings
 import android.content.Context
 import android.os.Build
+import android.util.Log
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -214,6 +215,9 @@ class BleController(context: Context) {
     private var scanRetryUsed = false
     private var scanRetryJob: Job? = null
 
+    /** 当前这次扫描是不是「只留目录认得的设备」。切换模式时必须重新注册扫描。 */
+    private var scanOnlyRecognized = false
+
     /**
      * 原始扫描缓冲。扫描回调一秒能来十几次，界面不需要这么密 ——
      * 每秒推一次就够看出「它在工作」，也不会让条目在手指底下乱跑。
@@ -230,6 +234,12 @@ class BleController(context: Context) {
             if (name.isBlank()) return
             val uuids = record?.serviceUuids?.map { it.uuid.toString() } ?: emptyList()
             val match = ToyCatalog.match(name, uuids)
+            // 设备页只收「目录里认得出来」的设备；手动添加 / 设备特征会关掉这个过滤。
+            // 判断放在解析厂商数据之前，能少做一堆无用功。
+            if (!ScanFilterPolicy.keep(match, scanOnlyRecognized)) {
+                scanBuffer.remove(result.device.address)
+                return
+            }
             val manufacturer = HashMap<Int, String>()
             record?.manufacturerSpecificData?.let { arr ->
                 for (i in 0 until arr.size()) manufacturer[arr.keyAt(i)] = hexBytes(arr.valueAt(i))
@@ -285,16 +295,25 @@ class BleController(context: Context) {
         }
     }
 
-    fun startScan() {
+    /**
+     * @param onlyRecognized true = 设备页：只留 ToyCatalog 认得出来的设备；
+     *                       false = 手动添加 / 设备特征：周围全部设备都要看见。
+     */
+    fun startScan(onlyRecognized: Boolean = true) {
         // 已经在扫描时，「重新扫描」只要清空列表重新收集结果即可，别去停掉再重新注册。
         // 每次重新注册都会占用 Android 的扫描配额，短时间内多点几次就会被判为扫描过频。
-        // 连接时 connect() 会 stopScan() 把 _scanning 置 false，
-        // 所以「连接成功后点重新扫描」走的是下面的完整重启路径，不受影响。
         if (_scanning.value) {
-            scanBuffer.clear()
-            _devices.value = emptyList()
-            return
+            if (scanOnlyRecognized == onlyRecognized) {
+                scanBuffer.clear()
+                _devices.value = emptyList()
+                return
+            }
+            // 模式变了（设备页 → 手动添加，或反过来）必须重新注册，
+            // 否则回调里沿用旧策略，手动添加会看不到未知设备。
+            stopScanInternal()
         }
+        scanOnlyRecognized = onlyRecognized
+        Log.d("PulseScan", if (onlyRecognized) "scan: recognized only" else "scan: all devices")
         scanRetryJob?.cancel()
         scanRetryJob = null
         scanRetryUsed = false

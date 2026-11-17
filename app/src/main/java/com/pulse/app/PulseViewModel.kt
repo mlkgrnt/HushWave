@@ -323,7 +323,8 @@ class PulseViewModel(app: Application) : AndroidViewModel(app) {
         _brandFilter.value = brand
     }
 
-    fun startScan() = ble.startScan()
+    /** 默认只扫目录认得的设备；手动添加 / 设备特征传 false 拿全量广播 */
+    fun startScan(onlyRecognized: Boolean = true) = ble.startScan(onlyRecognized)
     fun stopScan() = ble.stopScan()
 
     fun connect(item: ScanItem, protocolOverride: ProtocolSpec? = null) {

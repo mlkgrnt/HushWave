@@ -33,6 +33,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -68,6 +69,11 @@ fun ManualAddDialog(vm: PulseViewModel, onDismiss: () -> Unit) {
     // 采样过的列表：扫描回调太密，直接渲染会一直重排，点不中想点的那台
     val devices by vm.manualDevices.collectAsState()
     val scanning by vm.ble.scanning.collectAsState()
+    // 从设备页带着「只扫已知」的扫描进来时，直接切成全量，不用用户先点一次停止。
+    // 已经在扫描就说明权限齐了，这里重新注册是安全的。
+    LaunchedEffect(Unit) {
+        if (vm.ble.scanning.value) vm.startScan(onlyRecognized = false)
+    }
     var selected by remember { mutableStateOf<ScanItem?>(null) }
     var pending by remember { mutableStateOf<(() -> Unit)?>(null) }
 
@@ -131,7 +137,7 @@ fun ManualAddDialog(vm: PulseViewModel, onDismiss: () -> Unit) {
                     )
                     Text(
                         if (selected == null) {
-                            "这里只列没认出来的设备，已识别的会直接出现在首页"
+                            "这里全量扫描，只列没认出来的设备；首页只扫已支持的玩具"
                         } else {
                             "「${selected!!.name}」不在已知型号里，选一个品牌试试"
                         },
@@ -171,7 +177,7 @@ fun ManualAddDialog(vm: PulseViewModel, onDismiss: () -> Unit) {
                             )
                             .clickable {
                                 withPermission {
-                                    if (scanning) vm.stopScan() else vm.startScan()
+                                    if (scanning) vm.stopScan() else vm.startScan(onlyRecognized = false)
                                 }
                             },
                         contentAlignment = Alignment.Center

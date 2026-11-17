@@ -881,6 +881,11 @@ private fun DeviceReportDialog(vm: PulseViewModel, onDismiss: () -> Unit) {
     val bleState by vm.ble.state.collectAsState()
     val record by vm.activeRecord.collectAsState()
 
+    // 这个页面要看的是没收录的设备，扫描必须是全量的
+    LaunchedEffect(Unit) {
+        if (vm.ble.scanning.value) vm.startScan(onlyRecognized = false)
+    }
+
     var picked by remember { mutableStateOf<ScanItem?>(null) }
     var reading by remember { mutableStateOf(false) }
     var report by remember { mutableStateOf<String?>(null) }
@@ -1113,7 +1118,7 @@ private fun DeviceReportDialog(vm: PulseViewModel, onDismiss: () -> Unit) {
                             )
                             .clickable {
                                 withPermission {
-                                    if (scanning) vm.stopScan() else vm.startScan()
+                                    if (scanning) vm.stopScan() else vm.startScan(onlyRecognized = false)
                                 }
                             },
                         contentAlignment = Alignment.Center

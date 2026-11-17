@@ -224,7 +224,7 @@ fun DevicesScreen(vm: PulseViewModel, onOpenControl: () -> Unit) {
                         Column(Modifier.weight(1f)) {
                             Text("先选品牌，再扫描", style = MaterialTheme.typography.titleMedium, color = Palette.Text)
                             Text(
-                                "这里只显示已识别的玩具；其它蓝牙设备不会出现",
+                                "这里只扫已支持的玩具；要找没收录的设备去设置页「手动添加」",
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = Palette.TextFaint
                             )
