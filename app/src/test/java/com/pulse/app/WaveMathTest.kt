@@ -1,5 +1,6 @@
 package com.pulse.app
 
+import com.pulse.app.core.PresetLibrary
 import com.pulse.app.core.WaveLayer
 import com.pulse.app.core.WaveMath
 import com.pulse.app.core.WaveOp
@@ -22,6 +23,27 @@ class WaveMathTest {
             phase = 0f,
             op = op
         )
+
+    @Test
+    fun `十条预设都在 0 到 1 之间且首尾可采样`() {
+        val list = PresetLibrary.presets
+        assertEquals(10, list.size)
+        assertEquals(10, list.map { it.id }.distinct().size)
+        list.forEach { p ->
+            assertTrue(p.points.isNotEmpty())
+            assertTrue(p.durationMs > 0)
+            assertTrue(p.points.all { it.isFinite() && it >= 0f && it <= 1f })
+            for (phase in listOf(0f, 0.25f, 0.5f, 0.99f)) {
+                val v = p.sample(phase)
+                assertTrue(v >= 0f && v <= 1f)
+            }
+        }
+        // 渐强 / 渐弱 是一对方向相反的斜坡
+        val ascend = list.first { it.id == "ascend" }
+        val fade = list.first { it.id == "fade" }
+        assertTrue(ascend.points.last() > ascend.points.first())
+        assertTrue(fade.points.last() < fade.points.first())
+    }
 
     @Test
     fun `正弦从 0 起、中点最高、回到 0`() {

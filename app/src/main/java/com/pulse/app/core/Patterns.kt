@@ -125,6 +125,12 @@ object PresetLibrary {
             val ramp = 0.15f + 0.8f * t
             val ripple = 0.85f + 0.15f * sin(2 * PI * 6 * t).toFloat()
             (ramp * ripple).coerceIn(0f, 1f)
+        },
+        // 渐强的镜像：一样的时长和纹理，方向反过来，凑满 5 行 × 2 张
+        build("fade", "渐弱", "舒缓", 12000) { t ->
+            val ramp = 0.95f - 0.8f * t
+            val ripple = 0.85f + 0.15f * sin(2 * PI * 6 * t).toFloat()
+            (ramp * ripple).coerceIn(0f, 1f)
         }
     )
 
