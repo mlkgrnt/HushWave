@@ -57,8 +57,10 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
+import androidx.lifecycle.DefaultLifecycleObserver
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.ViewModelProvider
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.viewmodel.compose.viewModel
 import com.pulse.app.ui.AuroraBackground
 import com.pulse.app.ui.Palette
 import com.pulse.app.ui.PulseTheme
@@ -76,6 +78,14 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         ThemeState.load(this)
+        val vm = ViewModelProvider(this)[PulseViewModel::class.java]
+        // 退到后台就停扫：BLE 扫描会一直占着射频并唤醒 CPU，看不见界面时没必要留着。
+        // 只停不自动恢复，回来时由用户自己点「扫描设备」，避免隔了半天回来偷偷又开始扫。
+        lifecycle.addObserver(object : DefaultLifecycleObserver {
+            override fun onStop(owner: LifecycleOwner) {
+                vm.stopScan()
+            }
+        })
         setContent {
             val systemDark = isSystemInDarkTheme()
             val dark = ThemeState.resolveDark(systemDark)
@@ -87,7 +97,6 @@ class MainActivity : ComponentActivity() {
                 WindowCompat.getInsetsController(window, view).isAppearanceLightNavigationBars = !dark
             }
             PulseTheme(dark = dark, accents = accents, scheme = scheme) {
-                val vm: PulseViewModel = viewModel()
                 AppRoot(vm)
             }
         }
