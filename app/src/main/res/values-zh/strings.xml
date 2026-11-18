@@ -10,6 +10,7 @@
     <string name="lang_follow">跟随系统</string>
     <string name="lang_zh">简体中文</string>
     <string name="lang_en">English</string>
+    <string name="lang_es">Español</string>
     <string name="dev_000">预览模式</string>
     <string name="dev_001">连接你的玩具</string>
     <string name="dev_002">全部</string>
@@ -242,16 +243,6 @@
     <string name="ble_021">未连接 · 仅记录</string>
     <string name="ble_022">已断开</string>
     <string name="upd_000">响应为空，稍后再试</string>
-    <string name="rep_000">## 设备特征</string>
-    <string name="rep_001">### 广播</string>
-    <string name="rep_002">- 广播服务: 无</string>
-    <string name="rep_003">- 广播服务:</string>
-    <string name="rep_004">- 厂商数据:</string>
-    <string name="rep_005">### 识别</string>
-    <string name="rep_006">- 结果: 未收录</string>
-    <string name="rep_007">- 已存记录: 无</string>
-    <string name="rep_008">### GATT 结构</string>
-    <string name="rep_009">&gt; 本机只读取了广播与 GATT 结构，没有下发任何控制帧。</string>
     <string name="x_connected_restored">已连接 · 恢复「%1$s」的 %2$d 个模块</string>
     <string name="x_connected_to">已连接 %1$s</string>
     <string name="x_protocol_switched">已切换协议：%1$s · %2$s</string>
@@ -299,4 +290,13 @@
     <string name="x_analyzing_pct">正在分析音乐… %1$d%%</string>
     <string name="x_import_done">已导入《%1$s》，分析用时 %2$s 秒</string>
     <string name="x_default_wave">我的波形</string>
+    <string name="update_download">下载并安装</string>
+    <string name="update_downloading">正在下载… %1$d%%</string>
+    <string name="update_source">来源：%1$s</string>
+    <string name="update_source_mirror">镜像 %1$d</string>
+    <string name="update_ready">下载完成，点「安装更新」继续。</string>
+    <string name="update_install">安装更新</string>
+    <string name="update_install_blocked">请先在系统设置里允许本应用安装未知应用，再试一次</string>
+    <string name="update_failed">下载失败，可以重试，或去 GitHub 页面手动下载。</string>
+    <string name="update_retry">重试</string>
 </resources>

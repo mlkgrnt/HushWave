@@ -32,6 +32,7 @@ object LocaleManager {
     fun localeOf(tag: String): Locale = when (tag) {
         "zh" -> Locale.SIMPLIFIED_CHINESE
         "en" -> Locale.ENGLISH
+        "es" -> Locale("es", "ES")
         else -> Locale.forLanguageTag(tag)
     }
 
@@ -48,9 +49,13 @@ object LocaleManager {
     /** 给 ViewModel / 控制器这类拿不到 Activity 的地方用 */
     fun localized(ctx: Context): Context = wrap(ctx)
 
-    /** 当前是否英文（没选过就看系统） */
-    fun isEnglish(ctx: Context): Boolean {
-        val tag = selected(ctx) ?: Locale.getDefault().language
-        return !tag.startsWith("zh")
+    /** 当前语言代码：zh / en / es；没选过就看系统，未知语言落英文 */
+    fun language(ctx: Context): String {
+        selected(ctx)?.let { return it }
+        return when (Locale.getDefault().language) {
+            "zh" -> "zh"
+            "es" -> "es"
+            else -> "en"
+        }
     }
 }

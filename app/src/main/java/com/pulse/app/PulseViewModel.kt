@@ -53,6 +53,7 @@ class PulseViewModel(app: Application) : AndroidViewModel(app) {
     val memory = ToyMemory(app)
     private val modeMemory = ModeMemory(app)
     val library = com.pulse.app.core.MusicLibrary(app)
+    val updater = com.pulse.app.core.ApkUpdater(app)
     private val store = PatternStore(app)
 
     /** 当前连接的玩具地址，模式目标按它存 */
@@ -499,6 +500,15 @@ class PulseViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     // ------------------------------------------------------------- 通道
+    // ------------------------------------------------------------- 更新
+    fun downloadUpdate(version: String) = updater.download(version)
+
+    fun cancelUpdateDownload() = updater.cancel()
+
+    fun installUpdate() {
+        if (!updater.install()) _toast.value = Str.s(R.string.update_install_blocked)
+    }
+
     fun setModule(key: String, value: Float) = engine.set(key, value)
 
     /** 总强度：一次推所有通道；拖动时接管所有自动模式 */

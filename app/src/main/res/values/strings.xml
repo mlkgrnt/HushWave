@@ -10,6 +10,7 @@
     <string name="lang_follow">Follow system</string>
     <string name="lang_zh">简体中文</string>
     <string name="lang_en">English</string>
+    <string name="lang_es">Español</string>
     <string name="dev_000">Preview mode</string>
     <string name="dev_001">Connect your toy</string>
     <string name="dev_002">All</string>
@@ -242,16 +243,6 @@
     <string name="ble_021">Not connected · logging only</string>
     <string name="ble_022">Disconnected</string>
     <string name="upd_000">Empty response; try again later</string>
-    <string name="rep_000">## Device details</string>
-    <string name="rep_001">### Advertising</string>
-    <string name="rep_002">- Advertised services: none</string>
-    <string name="rep_003">- Advertised services:</string>
-    <string name="rep_004">- Manufacturer data:</string>
-    <string name="rep_005">### Identification</string>
-    <string name="rep_006">- Result: not listed</string>
-    <string name="rep_007">- Saved record: none</string>
-    <string name="rep_008">### GATT structure</string>
-    <string name="rep_009">&gt; Only advertising and GATT structure were read; no control frames were sent.</string>
     <string name="x_connected_restored">Connected · restored %2$d modules for %1$s</string>
     <string name="x_connected_to">Connected to %1$s</string>
     <string name="x_protocol_switched">Protocol switched: %1$s · %2$s</string>
@@ -296,7 +287,16 @@
     <string name="x_theme_summary">%1$s · Light %2$s / Dark %3$s</string>
     <string name="x_channels_count">%1$d channels</string>
     <string name="x_count_unit">%1$d</string>
-    <string name="x_analyzing_pct">正在分析音乐… %1$d%%</string>
-    <string name="x_import_done">已导入《%1$s》，分析用时 %2$s 秒</string>
+    <string name="x_analyzing_pct">Analyzing music… %1$d%%</string>
+    <string name="x_import_done">Imported 「%1$s」 — analyzed in %2$s s</string>
     <string name="x_default_wave">My wave</string>
+    <string name="update_download">Download and install</string>
+    <string name="update_downloading">Downloading… %1$d%%</string>
+    <string name="update_source">From %1$s</string>
+    <string name="update_source_mirror">mirror %1$d</string>
+    <string name="update_ready">Downloaded. Tap Install to continue.</string>
+    <string name="update_install">Install update</string>
+    <string name="update_install_blocked">Allow this app to install unknown apps, then try again</string>
+    <string name="update_failed">Download failed. Retry, or open the GitHub page.</string>
+    <string name="update_retry">Retry</string>
 </resources>

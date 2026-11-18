@@ -1,6 +1,7 @@
 package com.pulse.app.ui.screens
 
 import com.pulse.app.R
+import com.pulse.app.core.ApkUpdater
 import com.pulse.app.core.LocaleManager
 import com.pulse.app.core.Str
 import android.Manifest
@@ -49,6 +50,7 @@ import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material.icons.rounded.SystemUpdate
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
@@ -109,6 +111,7 @@ fun MoreScreen(vm: PulseViewModel) {
     val modules by vm.engine.modules.collectAsState()
     val voiceTargets by vm.voiceTargets.collectAsState()
     val canControl by vm.canControl.collectAsState()
+    val updateState by vm.updater.state.collectAsState()
 
     var showLogs by remember { mutableStateOf(false) }
     var showManual by remember { mutableStateOf(false) }
@@ -214,6 +217,7 @@ fun MoreScreen(vm: PulseViewModel) {
                         when (langTag) {
                             "zh" -> Str.s(R.string.lang_zh)
                             "en" -> Str.s(R.string.lang_en)
+                            "es" -> Str.s(R.string.lang_es)
                             else -> Str.s(R.string.lang_follow)
                         },
                         style = MaterialTheme.typography.labelLarge,
@@ -512,20 +516,132 @@ fun MoreScreen(vm: PulseViewModel) {
                 val upd = update
                 if (upd != null && UpdateChecker.isNewer(upd.version, BuildConfig.VERSION_NAME)) {
                     VSpace(10.dp)
-                    Box(
-                        Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(14.dp))
-                            .background(Palette.ActionBrush)
-                            .clickable { openUrl(upd.pageUrl) }
-                            .padding(vertical = 12.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            Str.s(R.string.x_download, upd.version),
-                            style = MaterialTheme.typography.labelLarge,
-                            color = Color.White
-                        )
+                    val st = updateState
+                    when (st) {
+                        is ApkUpdater.State.Downloading -> {
+                            Column(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(14.dp))
+                                    .background(Palette.overlay(0.05f))
+                                    .padding(14.dp)
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        Str.s(R.string.update_downloading, (st.progress * 100).toInt()),
+                                        style = MaterialTheme.typography.titleMedium,
+                                        color = Palette.Text
+                                    )
+                                    Spacer(Modifier.weight(1f))
+                                    Text(
+                                        Str.s(R.string.dev_004),
+                                        style = MaterialTheme.typography.labelLarge,
+                                        color = Palette.Cyan,
+                                        modifier = Modifier.clickable { vm.cancelUpdateDownload() }
+                                    )
+                                }
+                                VSpace(10.dp)
+                                LinearProgressIndicator(
+                                    progress = { st.progress },
+                                    modifier = Modifier.fillMaxWidth().height(6.dp),
+                                    color = Palette.Cyan,
+                                    trackColor = Palette.overlay(0.08f)
+                                )
+                                VSpace(8.dp)
+                                Text(
+                                    Str.s(
+                                        R.string.update_source,
+                                        if (st.source == 0) "GitHub"
+                                        else Str.s(R.string.update_source_mirror, st.source)
+                                    ),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = Palette.TextFaint
+                                )
+                            }
+                        }
+
+                        is ApkUpdater.State.Ready -> {
+                            Column(Modifier.fillMaxWidth()) {
+                                Box(
+                                    Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(14.dp))
+                                        .background(Palette.ActionBrush)
+                                        .clickable { vm.installUpdate() }
+                                        .padding(vertical = 12.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        Str.s(R.string.update_install),
+                                        style = MaterialTheme.typography.labelLarge,
+                                        color = Color.White
+                                    )
+                                }
+                                VSpace(6.dp)
+                                Text(
+                                    Str.s(R.string.update_ready),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = Palette.TextFaint
+                                )
+                            }
+                        }
+
+                        is ApkUpdater.State.Failed -> {
+                            Column(Modifier.fillMaxWidth()) {
+                                Text(
+                                    Str.s(R.string.update_failed),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = Palette.TextDim
+                                )
+                                VSpace(8.dp)
+                                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    Box(
+                                        Modifier
+                                            .clip(RoundedCornerShape(12.dp))
+                                            .background(Palette.ActionBrush)
+                                            .clickable { vm.downloadUpdate(upd.version) }
+                                            .padding(horizontal = 18.dp, vertical = 10.dp)
+                                    ) {
+                                        Text(
+                                            Str.s(R.string.update_retry),
+                                            style = MaterialTheme.typography.labelLarge,
+                                            color = Color.White
+                                        )
+                                    }
+                                    Box(
+                                        Modifier
+                                            .clip(RoundedCornerShape(12.dp))
+                                            .background(Palette.overlay(0.06f))
+                                            .clickable { openUrl(upd.pageUrl) }
+                                            .padding(horizontal = 18.dp, vertical = 10.dp)
+                                    ) {
+                                        Text(
+                                            "GitHub",
+                                            style = MaterialTheme.typography.labelLarge,
+                                            color = Palette.TextDim
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        else -> {
+                            Box(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(14.dp))
+                                    .background(Palette.ActionBrush)
+                                    .clickable { vm.downloadUpdate(upd.version) }
+                                    .padding(vertical = 12.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    Str.s(R.string.update_download) + " " + upd.version,
+                                    style = MaterialTheme.typography.labelLarge,
+                                    color = Color.White
+                                )
+                            }
+                        }
                     }
                 }
                 VSpace(12.dp)
@@ -1274,7 +1390,8 @@ private fun LanguageDialog(
             listOf<Pair<String?, Int>>(
                 null to R.string.lang_follow,
                 "zh" to R.string.lang_zh,
-                "en" to R.string.lang_en
+                "en" to R.string.lang_en,
+                "es" to R.string.lang_es
             ).forEach { (tag, res) ->
                 val active = current == tag
                 Row(
