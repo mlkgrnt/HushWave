@@ -1,11 +1,13 @@
 package com.pulse.app
 
 import android.app.Activity
+import android.content.Context
 import android.content.pm.ApplicationInfo
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.annotation.StringRes
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -56,11 +58,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.res.stringResource
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ViewModelProvider
 import androidx.compose.ui.unit.dp
+import com.pulse.app.core.LocaleManager
 import com.pulse.app.ui.AuroraBackground
 import com.pulse.app.ui.Palette
 import com.pulse.app.ui.PulseTheme
@@ -74,6 +78,12 @@ import com.pulse.app.ui.screens.PatternsScreen
 import kotlinx.coroutines.delay
 
 class MainActivity : ComponentActivity() {
+
+    /** 语言选择在这里生效：包一层目标语言，Compose 里所有 stringResource 跟着变 */
+    override fun attachBaseContext(newBase: Context) {
+        super.attachBaseContext(LocaleManager.wrap(newBase))
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -103,7 +113,7 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-private data class Tab(val title: String, val icon: ImageVector)
+private data class Tab(@StringRes val title: Int, val icon: ImageVector)
 
 @Composable
 fun AppRoot(vm: PulseViewModel) {
@@ -176,10 +186,10 @@ fun AppRoot(vm: PulseViewModel) {
 @Composable
 private fun PulseBottomBar(selected: Int, onSelect: (Int) -> Unit) {
     val tabs = listOf(
-        Tab("设备", Icons.Rounded.Bluetooth),
-        Tab("控制", Icons.Rounded.Tune),
-        Tab("波形", Icons.Rounded.GraphicEq),
-        Tab("设置", Icons.Rounded.MoreHoriz)
+        Tab(R.string.tab_devices, Icons.Rounded.Bluetooth),
+        Tab(R.string.tab_control, Icons.Rounded.Tune),
+        Tab(R.string.tab_wave, Icons.Rounded.GraphicEq),
+        Tab(R.string.tab_settings, Icons.Rounded.MoreHoriz)
     )
     Row(
         Modifier
@@ -209,14 +219,14 @@ private fun PulseBottomBar(selected: Int, onSelect: (Int) -> Unit) {
                 ) {
                     Icon(
                         t.icon,
-                        contentDescription = t.title,
+                        contentDescription = stringResource(t.title),
                         modifier = Modifier.size(19.dp),
                         tint = if (active) Palette.Violet else Palette.TextFaint
                     )
                 }
                 Spacer(Modifier.height(3.dp))
                 Text(
-                    t.title,
+                    stringResource(t.title),
                     style = MaterialTheme.typography.labelSmall,
                     color = if (active) Palette.Text else Palette.TextFaint
                 )
