@@ -1,5 +1,6 @@
 package com.pulse.app.core
 
+import com.pulse.app.R
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
@@ -35,9 +36,9 @@ object UpdateChecker {
                 .header("User-Agent", "HushWave")
                 .build()
             client.newCall(req).execute().use { resp ->
-                if (!resp.isSuccessful) error("GitHub 返回 ${resp.code}")
+                if (!resp.isSuccessful) error(Str.s(R.string.x_github_code, resp.code))
                 val body = resp.body?.string().orEmpty()
-                if (body.isBlank()) error("响应为空，稍后再试")
+                if (body.isBlank()) error(Str.s(R.string.upd_000))
                 val o = JSONObject(body)
                 UpdateInfo(
                     version = o.optString("tag_name").removePrefix("v").removePrefix("V").trim(),

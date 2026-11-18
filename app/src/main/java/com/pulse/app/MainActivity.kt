@@ -1,5 +1,6 @@
 package com.pulse.app
 
+import com.pulse.app.R
 import android.app.Activity
 import android.content.Context
 import android.content.pm.ApplicationInfo

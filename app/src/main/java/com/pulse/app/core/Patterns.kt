@@ -1,5 +1,7 @@
 package com.pulse.app.core
 
+import com.pulse.app.core.Str
+import com.pulse.app.R
 import android.content.Context
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job

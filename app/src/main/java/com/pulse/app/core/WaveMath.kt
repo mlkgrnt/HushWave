@@ -1,5 +1,7 @@
 package com.pulse.app.core
 
+import com.pulse.app.core.Str
+import com.pulse.app.R
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.cos

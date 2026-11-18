@@ -1,5 +1,7 @@
 package com.pulse.app.ui.screens
 
+import com.pulse.app.R
+import com.pulse.app.core.Str
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -107,7 +109,7 @@ fun ControlScreen(vm: PulseViewModel) {
                 Column(Modifier.weight(1f)) {
                     Text(
                         model?.shortName ?: record?.modelName?.let { stripBrand(it, record?.brand ?: "") }
-                        ?: if (demo && modules.isNotEmpty()) "预览" else "未连接",
+                        ?: if (demo && modules.isNotEmpty()) Str.s(R.string.ctl_000) else Str.s(R.string.ctl_001),
                         style = MaterialTheme.typography.headlineMedium,
                         color = Palette.Text
                     )
@@ -117,7 +119,7 @@ fun ControlScreen(vm: PulseViewModel) {
                         Text(
                             when {
                                 connected -> record?.brand ?: protocol?.brand ?: ""
-                                else -> "等待连接"
+                                else -> Str.s(R.string.ctl_002)
                             },
                             style = MaterialTheme.typography.bodyMedium,
                             color = Palette.TextFaint
@@ -128,7 +130,7 @@ fun ControlScreen(vm: PulseViewModel) {
                     musicSync -> Pill("MIC", Palette.Cyan)
                     shake -> Pill("SHAKE", Palette.Rose)
                     play != null -> Pill("PATTERN", Palette.Violet)
-                    record != null -> Pill("已保存", Palette.Lime)
+                    record != null -> Pill(Str.s(R.string.ctl_003), Palette.Lime)
                 }
             }
             VSpace(4.dp)
@@ -153,15 +155,15 @@ fun ControlScreen(vm: PulseViewModel) {
             GlassCard(Modifier.fillMaxWidth(), glow = true, padding = 18.dp) {
                 if (primary != null) {
                     GlowSlider(
-                        label = "强度 - 同步控制",
+                        label = Str.s(R.string.ctl_004),
                         value = if (masterActive) masterValue else 0f,
                         onChange = { vm.setMaster(it) },
                         accent = Palette.Violet,
-                        valueText = if (masterActive) "${(masterValue * 100).roundToInt()}%" else "手动控制接管"
+                        valueText = if (masterActive) "${(masterValue * 100).roundToInt()}%" else Str.s(R.string.ctl_005)
                     )
                 } else {
                     Text(
-                        "还没有选择设备。先在「设备」页连接或指定协议。",
+                        Str.s(R.string.ctl_006),
                         style = MaterialTheme.typography.bodyMedium,
                         color = Palette.TextFaint
                     )
@@ -169,7 +171,7 @@ fun ControlScreen(vm: PulseViewModel) {
                 VSpace(6.dp)
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        "输出轨迹",
+                        Str.s(R.string.ctl_007),
                         style = MaterialTheme.typography.labelSmall,
                         color = Palette.TextFaint
                     )
@@ -192,20 +194,20 @@ fun ControlScreen(vm: PulseViewModel) {
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
                 ActionTile(
-                    title = "全部停止",
+                    title = Str.s(R.string.ctl_008),
                     icon = Icons.Rounded.Stop,
                     tint = Palette.Rose,
                     modifier = Modifier.weight(1f)
                 ) { vm.stopAll() }
                 ActionTile(
-                    title = "脉冲",
+                    title = Str.s(R.string.ctl_009),
                     icon = Icons.Rounded.Bolt,
                     tint = Palette.Cyan,
                     enabled = canControl,
                     modifier = Modifier.weight(1f)
                 ) { vm.pulse() }
                 ActionTile(
-                    title = if (shake) "摇一摇 开" else "摇一摇",
+                    title = if (shake) Str.s(R.string.ctl_010) else Str.s(R.string.ctl_011),
                     icon = Icons.Rounded.Vibration,
                     tint = if (shake) Palette.Violet else Palette.TextDim,
                     active = shake,
@@ -216,7 +218,7 @@ fun ControlScreen(vm: PulseViewModel) {
             if (canControl && modules.isNotEmpty()) {
                 VSpace(12.dp)
                 Text(
-                    "摇一摇 / 脉冲 作用于",
+                    Str.s(R.string.ctl_012),
                     style = MaterialTheme.typography.labelSmall,
                     color = Palette.TextFaint
                 )
@@ -250,7 +252,7 @@ fun ControlScreen(vm: PulseViewModel) {
                                 .padding(horizontal = 12.dp, vertical = 7.dp)
                         ) {
                             Text(
-                                spec.label,
+                                Str.data(spec.label),
                                 style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 0.sp),
                                 color = if (on) Palette.Violet else Palette.TextDim
                             )
@@ -268,7 +270,7 @@ fun ControlScreen(vm: PulseViewModel) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
                             Text(
-                                "正在播放 · ${p.pattern.name}",
+                                Str.s(R.string.x_now_playing_pattern, Str.data(p.pattern.name)),
                                 style = MaterialTheme.typography.titleMedium,
                                 color = Palette.Text
                             )
@@ -291,8 +293,8 @@ fun ControlScreen(vm: PulseViewModel) {
 
         item {
             SectionHeader(
-                "通道",
-                if (modules.isEmpty()) "" else "${modules.size} 个可调通道"
+                Str.s(R.string.ctl_013),
+                if (modules.isEmpty()) "" else Str.s(R.string.x_channels_adjustable, modules.size)
             )
         }
 
@@ -300,7 +302,7 @@ fun ControlScreen(vm: PulseViewModel) {
             GlassCard(Modifier.fillMaxWidth()) {
                 if (modules.isEmpty()) {
                     Text(
-                        "连接设备后这里会出现可调通道。",
+                        Str.s(R.string.ctl_014),
                         style = MaterialTheme.typography.bodyMedium,
                         color = Palette.TextFaint
                     )
@@ -320,7 +322,7 @@ fun ControlScreen(vm: PulseViewModel) {
             item {
                 GlassCard(Modifier.fillMaxWidth(), padding = 15.dp) {
                     Text(
-                        "这台玩具的通道和上次的设置已保存，下次连接会自动恢复。",
+                        Str.s(R.string.ctl_015),
                         style = MaterialTheme.typography.bodyMedium,
                         color = Palette.TextFaint
                     )
@@ -346,7 +348,7 @@ private fun ModuleSlider(spec: ModuleSpec, value: Float, onChange: (Float) -> Un
         ModuleType.HEAT -> Color(0xFFFFA26B)
         ModuleType.LED -> Color(0xFF9AE6B4)
     }
-    val label = if (spec.type == ModuleType.ESTIM_FREQ) spec.label else spec.label
+    val label = Str.data(spec.label)
     GlowSlider(
         label = label,
         value = value,

@@ -1,5 +1,6 @@
 package com.pulse.app.core
 
+import com.pulse.app.R
 import android.os.Build
 import com.pulse.app.BuildConfig
 
@@ -13,7 +14,7 @@ object DeviceReport {
 
     fun build(item: ScanItem, gatt: String?, record: ToyRecord?, note: String? = null): String =
         buildString {
-            appendLine("## 设备特征")
+            appendLine(Str.s(R.string.rep_000))
             appendLine()
             appendLine("- App: HushWave ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})")
             appendLine(
@@ -21,19 +22,19 @@ object DeviceReport {
                     "Android ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})"
             )
             appendLine()
-            appendLine("### 广播")
+            appendLine(Str.s(R.string.rep_001))
             appendLine("- 名称: ${item.name}")
             appendLine("- 地址: ${item.address}")
             appendLine("- RSSI: ${item.rssi} dBm")
             appendLine("- 可连接: ${if (item.connectable) "是" else "否"}")
             if (item.services.isEmpty()) {
-                appendLine("- 广播服务: 无")
+                appendLine(Str.s(R.string.rep_002))
             } else {
-                appendLine("- 广播服务:")
+                appendLine(Str.s(R.string.rep_003))
                 item.services.forEach { appendLine("  - $it") }
             }
             if (item.manufacturer.isNotEmpty()) {
-                appendLine("- 厂商数据:")
+                appendLine(Str.s(R.string.rep_004))
                 item.manufacturer.forEach { (id, hex) ->
                     appendLine("  - 0x%04X: %s".format(id, hex))
                 }
@@ -43,10 +44,10 @@ object DeviceReport {
                 item.serviceData.forEach { (uuid, hex) -> appendLine("  - $uuid: $hex") }
             }
             appendLine()
-            appendLine("### 识别")
+            appendLine(Str.s(R.string.rep_005))
             val match = item.match
             when {
-                match == null -> appendLine("- 结果: 未收录")
+                match == null -> appendLine(Str.s(R.string.rep_006))
                 match.weak -> appendLine(
                     "- 结果: 未收录（只有共用 UUID 证据，可能是 ${match.protocol.brand} · " +
                         "${match.protocol.display}）"
@@ -62,10 +63,10 @@ object DeviceReport {
                         record.modules.joinToString(", ") { it.label }
                 )
             } else {
-                appendLine("- 已存记录: 无")
+                appendLine(Str.s(R.string.rep_007))
             }
             appendLine()
-            appendLine("### GATT 结构")
+            appendLine(Str.s(R.string.rep_008))
             if (gatt.isNullOrBlank()) {
                 appendLine("- 未读取（${note ?: "设备没有连上"}）")
             } else {
@@ -74,6 +75,6 @@ object DeviceReport {
                 appendLine("```")
             }
             appendLine()
-            appendLine("> 本机只读取了广播与 GATT 结构，没有下发任何控制帧。")
+            appendLine(Str.s(R.string.rep_009))
         }
 }

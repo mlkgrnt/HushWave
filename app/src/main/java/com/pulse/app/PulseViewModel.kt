@@ -1,5 +1,7 @@
 package com.pulse.app
 
+import com.pulse.app.R
+import com.pulse.app.core.Str
 import android.app.Application
 import android.content.Context
 import android.hardware.Sensor
@@ -157,9 +159,9 @@ class PulseViewModel(app: Application) : AndroidViewModel(app) {
                         engine.setDemo(false)
                         val rec = _activeRecord.value
                         _toast.value = if (rec != null) {
-                            "已连接 · 恢复「${rec.name}」的 ${rec.modules.size} 个模块"
+                            Str.s(R.string.x_connected_restored, rec.name, rec.modules.size)
                         } else {
-                            "已连接 ${st.name}"
+                            Str.s(R.string.x_connected_to, st.name)
                         }
                     }
 
@@ -195,7 +197,7 @@ class PulseViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             music.state.collect { m ->
                 if (_musicSync.value && !m.running && m == MusicEngine.MusicState()) {
-                    _toast.value = "麦克风不可用，检查权限或是否被其它应用占用"
+                    _toast.value = Str.s(R.string.vm_000)
                 }
                 if (_musicSync.value && m.running) {
                     val keys = resolveVoiceTargets()
@@ -331,7 +333,7 @@ class PulseViewModel(app: Application) : AndroidViewModel(app) {
         val match = item.match
         val protocol = protocolOverride ?: match?.protocol
         if (protocol == null) {
-            _toast.value = "未识别品牌，请手动指定协议"
+            _toast.value = Str.s(R.string.vm_001)
             return
         }
         val model = protocol.modelFor(item.name)
@@ -377,16 +379,16 @@ class PulseViewModel(app: Application) : AndroidViewModel(app) {
     /** 只读一遍 GATT 结构，不下发控制帧。给「设备特征收集」用。 */
     fun inspectDevice(item: ScanItem) {
         if (!ble.isSupported) {
-            ble.failInspect("这台设备没有蓝牙")
+            ble.failInspect(Str.s(R.string.vm_002))
             return
         }
         if (!ble.isBluetoothOn) {
-            ble.failInspect("蓝牙还没打开")
+            ble.failInspect(Str.s(R.string.vm_003))
             return
         }
         when (ble.state.value) {
             is BleState.Ready -> {
-                _toast.value = "先断开当前设备，再读另一台"
+                _toast.value = Str.s(R.string.vm_004)
                 return
             }
 
@@ -402,14 +404,14 @@ class PulseViewModel(app: Application) : AndroidViewModel(app) {
         android.util.Log.d("PulseDemo", "loadDemo protocol=$protocol")
         if (protocol == null) return
         val modules = listOf(
-            ModuleSpec(ModuleType.VIBRATE, 0, "振动 A", 100),
-            ModuleSpec(ModuleType.VIBRATE, 1, "振动 B", 100)
+            ModuleSpec(ModuleType.VIBRATE, 0, Str.s(R.string.vm_005), 100),
+            ModuleSpec(ModuleType.VIBRATE, 1, Str.s(R.string.vm_006), 100)
         )
         _activeRecord.value = null
         engine.configure(protocol, null, modules, "DEMO", emptyMap())
         applyRestoredTargets(null, modules)
         engine.setDemo(true)
-        _toast.value = "模拟设备已载入（不会真的驱动）"
+        _toast.value = Str.s(R.string.vm_007)
     }
 
     /** 连接中取消：不用干等十几秒超时 */
@@ -417,7 +419,7 @@ class PulseViewModel(app: Application) : AndroidViewModel(app) {
         if (ble.state.value !is BleState.Connecting) return
         ble.cancelConnect()
         clearLinkState()
-        _toast.value = "已取消连接"
+        _toast.value = Str.s(R.string.vm_008)
     }
 
     /**
@@ -466,7 +468,7 @@ class PulseViewModel(app: Application) : AndroidViewModel(app) {
         persistModes()
         memory.save(newRec)
         _savedToys.value = memory.all()
-        _toast.value = "已切换协议：${protocol.brand} · ${protocol.display}"
+        _toast.value = Str.s(R.string.x_protocol_switched, Str.data(protocol.brand), Str.data(protocol.display))
     }
 
     /** 手动改模块列表（未知型号 / 检测不全） */
@@ -480,7 +482,7 @@ class PulseViewModel(app: Application) : AndroidViewModel(app) {
         persistModes()
         memory.save(newRec)
         _savedToys.value = memory.all()
-        _toast.value = "模块已保存：${modules.size} 个"
+        _toast.value = Str.s(R.string.x_modules_saved, modules.size)
     }
 
     fun deleteToy(address: String) {
@@ -559,7 +561,7 @@ class PulseViewModel(app: Application) : AndroidViewModel(app) {
         val drawn = PresetLibrary.fromTrace(name, durationMs, trace)
         val p = if (id != null) drawn.copy(id = id) else drawn
         upsert(p)
-        _toast.value = if (id != null) "已更新「$name」" else "已保存「$name」"
+        _toast.value = if (id != null) Str.s(R.string.x_updated, name) else Str.s(R.string.x_saved, name)
         return p
     }
 
@@ -575,11 +577,11 @@ class PulseViewModel(app: Application) : AndroidViewModel(app) {
             name = name,
             durationMs = durationMs.coerceIn(300, 30_000),
             points = WaveMath.synthesize(layers),
-            tag = "函数",
+            tag = Str.s(R.string.vm_009),
             recipe = WaveMath.encode(layers)
         )
         upsert(p)
-        _toast.value = if (id != null) "已更新「$name」" else "已保存「$name」"
+        _toast.value = if (id != null) Str.s(R.string.x_updated, name) else Str.s(R.string.x_saved, name)
         return p
     }
 
@@ -608,7 +610,7 @@ class PulseViewModel(app: Application) : AndroidViewModel(app) {
             if (_songPlaying.value) stopSong()
             player.stop()
             music.start()
-            _toast.value = "麦克风律动已开启"
+            _toast.value = Str.s(R.string.vm_010)
         } else {
             music.stop()
             vibrateKeys().forEach { engine.set(it, 0f) }
@@ -657,7 +659,7 @@ class PulseViewModel(app: Application) : AndroidViewModel(app) {
                 SensorManager.SENSOR_DELAY_GAME
             )
             sensorListener = listener
-            _toast.value = "摇一摇：晃起来"
+            _toast.value = Str.s(R.string.vm_011)
         } else {
             sensorListener?.let { sm.unregisterListener(it) }
             sensorListener = null
@@ -674,25 +676,25 @@ class PulseViewModel(app: Application) : AndroidViewModel(app) {
 
     fun importSong(uri: Uri) {
         viewModelScope.launch {
-            _songBusy.value = "正在导入…"
+            _songBusy.value = Str.s(R.string.vm_012)
             val song = withContext(kotlinx.coroutines.Dispatchers.IO) { library.import(uri) }
             if (song == null) {
                 _songBusy.value = null
-                _toast.value = "导入失败"
+                _toast.value = Str.s(R.string.vm_013)
                 return@launch
             }
-            _songBusy.value = "正在分析音乐…"
+            _songBusy.value = Str.s(R.string.vm_014)
             val started = System.currentTimeMillis()
             val env = library.analyze(song) { p ->
-                _songBusy.value = "正在分析音乐… ${(p.coerceIn(0f, 1f) * 100).toInt()}%"
+                _songBusy.value = Str.s(R.string.x_analyzing_pct, (p.coerceIn(0f, 1f) * 100).toInt())
             }
             val secs = (System.currentTimeMillis() - started) / 1000f
             _songBusy.value = null
             if (env.isEmpty()) {
                 library.delete(song)
-                _toast.value = "这首歌没法分析，可能是不支持的格式"
+                _toast.value = Str.s(R.string.vm_015)
             } else {
-                _toast.value = "已导入《${song.title}》，分析用时 ${"%.1f".format(secs)} 秒"
+                _toast.value = Str.s(R.string.x_import_done, song.title, "%.1f".format(secs))
             }
             _songs.value = library.list()
         }
@@ -700,26 +702,26 @@ class PulseViewModel(app: Application) : AndroidViewModel(app) {
 
     fun importSongFromPath(path: String) {
         viewModelScope.launch {
-            _songBusy.value = "正在导入…"
+            _songBusy.value = Str.s(R.string.vm_012)
             val song = withContext(kotlinx.coroutines.Dispatchers.IO) { library.importFromPath(path) }
             if (song == null) {
                 _songBusy.value = null
-                _toast.value = "找不到文件"
+                _toast.value = Str.s(R.string.vm_017)
                 return@launch
             }
-            _songBusy.value = "正在分析音乐…"
+            _songBusy.value = Str.s(R.string.vm_014)
             val started = System.currentTimeMillis()
             val env = library.analyze(song) { p ->
-                _songBusy.value = "正在分析音乐… ${(p.coerceIn(0f, 1f) * 100).toInt()}%"
+                _songBusy.value = Str.s(R.string.x_analyzing_pct, (p.coerceIn(0f, 1f) * 100).toInt())
             }
             val secs = (System.currentTimeMillis() - started) / 1000f
             _songBusy.value = null
             if (env.isEmpty()) library.delete(song)
             _songs.value = library.list()
             _toast.value = if (env.isEmpty()) {
-                "分析失败"
+                Str.s(R.string.vm_018)
             } else {
-                "已导入《${song.title}》，分析用时 ${"%.1f".format(secs)} 秒"
+                Str.s(R.string.x_import_done, song.title, "%.1f".format(secs))
             }
         }
     }
@@ -737,13 +739,13 @@ class PulseViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             songJob?.cancel()
             releasePlayer()
-            _songBusy.value = "正在准备…"
+            _songBusy.value = Str.s(R.string.vm_019)
             var env = library.envelope(song)
             if (env.isEmpty()) env = library.analyze(song)
             envelope = env
             _songBusy.value = null
             if (env.isEmpty()) {
-                _toast.value = "这首歌没有可用的分析结果"
+                _toast.value = Str.s(R.string.vm_020)
                 return@launch
             }
             val mp = MediaPlayer()
@@ -752,7 +754,7 @@ class PulseViewModel(app: Application) : AndroidViewModel(app) {
                 mp.prepare()
             } catch (e: Exception) {
                 runCatching { mp.release() }
-                _toast.value = "播放失败：${e.message}"
+                _toast.value = Str.s(R.string.x_play_failed, e.message ?: "")
                 return@launch
             }
             mp.setOnCompletionListener { stopSong() }

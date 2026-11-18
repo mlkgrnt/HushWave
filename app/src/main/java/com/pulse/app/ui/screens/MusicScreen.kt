@@ -1,5 +1,7 @@
 package com.pulse.app.ui.screens
 
+import com.pulse.app.R
+import com.pulse.app.core.Str
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -93,9 +95,9 @@ fun MusicDialog(vm: PulseViewModel, onDismiss: () -> Unit) {
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text("音乐", style = MaterialTheme.typography.headlineMedium, color = Palette.Text)
+                    Text(Str.s(R.string.mus_000), style = MaterialTheme.typography.headlineMedium, color = Palette.Text)
                     Text(
-                        "按歌曲的激昂程度自动控制强度",
+                        Str.s(R.string.mus_001),
                         style = MaterialTheme.typography.bodyMedium,
                         color = Palette.TextFaint
                     )
@@ -138,7 +140,7 @@ fun MusicDialog(vm: PulseViewModel, onDismiss: () -> Unit) {
             }
 
             if (canControl) {
-                Text("作用于", style = MaterialTheme.typography.labelSmall, color = Palette.TextFaint)
+                Text(Str.s(R.string.mus_002), style = MaterialTheme.typography.labelSmall, color = Palette.TextFaint)
                 VSpace(8.dp)
                 Row(
                     Modifier
@@ -169,7 +171,7 @@ fun MusicDialog(vm: PulseViewModel, onDismiss: () -> Unit) {
                                 .padding(horizontal = 12.dp, vertical = 7.dp)
                         ) {
                             Text(
-                                spec.label,
+                                Str.data(spec.label),
                                 style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 0.sp),
                                 color = if (on) Palette.Violet else Palette.TextDim
                             )
@@ -181,7 +183,7 @@ fun MusicDialog(vm: PulseViewModel, onDismiss: () -> Unit) {
 
             if (!canControl) {
                 Text(
-                    "先连接玩具，音乐才有作用对象。",
+                    Str.s(R.string.mus_003),
                     style = MaterialTheme.typography.bodyMedium,
                     color = Palette.TextFaint
                 )
@@ -189,7 +191,7 @@ fun MusicDialog(vm: PulseViewModel, onDismiss: () -> Unit) {
             }
 
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("曲库", style = MaterialTheme.typography.titleMedium, color = Palette.Text)
+                Text(Str.s(R.string.mus_004), style = MaterialTheme.typography.titleMedium, color = Palette.Text)
                 Spacer(Modifier.weight(1f))
                 Box(
                     Modifier
@@ -202,7 +204,7 @@ fun MusicDialog(vm: PulseViewModel, onDismiss: () -> Unit) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Rounded.Add, null, tint = Palette.Violet, modifier = Modifier.size(14.dp))
                         Spacer(Modifier.width(4.dp))
-                        Text("导入", style = MaterialTheme.typography.labelSmall, color = Palette.Violet)
+                        Text(Str.s(R.string.mus_005), style = MaterialTheme.typography.labelSmall, color = Palette.Violet)
                     }
                 }
             }
@@ -210,7 +212,7 @@ fun MusicDialog(vm: PulseViewModel, onDismiss: () -> Unit) {
 
             if (songs.isEmpty()) {
                 Text(
-                    "还没有歌曲。点「导入」从手机里选一首，App 会在本地分析它的起伏，不联网。",
+                    Str.s(R.string.mus_006),
                     style = MaterialTheme.typography.bodyMedium,
                     color = Palette.TextFaint
                 )
@@ -302,7 +304,7 @@ private fun NowPlaying(
         SeekBar(progress = frac, onSeek = onSeek)
         VSpace(6.dp)
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("当前强度", style = MaterialTheme.typography.labelSmall, color = Palette.TextFaint)
+            Text(Str.s(R.string.mus_007), style = MaterialTheme.typography.labelSmall, color = Palette.TextFaint)
             Spacer(Modifier.width(10.dp))
             Box(
                 Modifier
@@ -432,7 +434,7 @@ private fun SongRow(
             )
         }
         if (playing) {
-            Pill("播放中", Palette.Cyan)
+            Pill(Str.s(R.string.mus_008), Palette.Cyan)
             Spacer(Modifier.width(8.dp))
         }
         Box(

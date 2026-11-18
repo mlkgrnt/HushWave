@@ -1,5 +1,7 @@
 package com.pulse.app.ui.screens
 
+import com.pulse.app.R
+import com.pulse.app.core.Str
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -68,9 +70,9 @@ fun AppearanceCard() {
             }
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
-                Text("外观", style = MaterialTheme.typography.titleMedium, color = Palette.Text)
+                Text(Str.s(R.string.appr_000), style = MaterialTheme.typography.titleMedium, color = Palette.Text)
                 Text(
-                    "${ThemeState.mode.cn} · 浅色${ThemeState.lightStyle.cn} / 深色${ThemeState.darkStyle.cn}",
+                    Str.s(R.string.x_theme_summary, Str.data(ThemeState.mode.cn), Str.data(ThemeState.lightStyle.cn), Str.data(ThemeState.darkStyle.cn)),
                     style = MaterialTheme.typography.bodyMedium,
                     color = Palette.TextFaint
                 )
@@ -80,7 +82,7 @@ fun AppearanceCard() {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             ThemeMode.values().forEach { m ->
                 Chip(
-                    text = m.cn,
+                    text = Str.data(m.cn),
                     selected = ThemeState.mode == m,
                     modifier = Modifier.weight(1f)
                 ) { ThemeState.setMode(m, ctx) }
@@ -90,22 +92,22 @@ fun AppearanceCard() {
         DividerLine()
         VSpace(12.dp)
         StyleRow(
-            title = "浅色配色",
+            title = Str.s(R.string.appr_001),
             style = ThemeState.lightStyle,
             dark = false,
             onClick = { editing = false }
         )
         VSpace(10.dp)
         StyleRow(
-            title = "深色配色",
+            title = Str.s(R.string.appr_002),
             style = ThemeState.darkStyle,
             dark = true,
             onClick = { editing = true }
         )
         VSpace(10.dp)
         Text(
-            if (ThemeState.supportsWallpaper) "配色可跟随壁纸生成，也可以自己挑一个颜色。"
-            else "当前系统版本不支持壁纸取色，可选用预设或自定义颜色。",
+            if (ThemeState.supportsWallpaper) Str.s(R.string.appr_003)
+            else Str.s(R.string.appr_004),
             style = MaterialTheme.typography.bodyMedium,
             color = Palette.TextFaint
         )
@@ -129,9 +131,9 @@ private fun StyleRow(title: String, style: ColorStyle, dark: Boolean, onClick: (
         Text(title, style = MaterialTheme.typography.labelLarge, color = Palette.TextDim, modifier = Modifier.weight(1f))
         AccentDots(style.accents(dark, ThemeState.custom(dark)), 18.dp)
         Spacer(Modifier.width(10.dp))
-        Text(style.cn, style = MaterialTheme.typography.bodyMedium, color = Palette.Text)
+        Text(Str.data(style.cn), style = MaterialTheme.typography.bodyMedium, color = Palette.Text)
         Spacer(Modifier.width(8.dp))
-        Text("更改", style = MaterialTheme.typography.labelSmall, color = Palette.Violet)
+        Text(Str.s(R.string.appr_005), style = MaterialTheme.typography.labelSmall, color = Palette.Violet)
     }
 }
 
@@ -204,7 +206,7 @@ private fun ColorStyleDialog(dark: Boolean, onDismiss: () -> Unit) {
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    if (dark) "深色配色" else "浅色配色",
+                    if (dark) Str.s(R.string.appr_002) else Str.s(R.string.appr_001),
                     style = MaterialTheme.typography.headlineMedium,
                     color = Palette.Text
                 )
@@ -222,7 +224,7 @@ private fun ColorStyleDialog(dark: Boolean, onDismiss: () -> Unit) {
             }
             VSpace(4.dp)
             Text(
-                "浅色和深色分开保存，切换模式时各自生效。",
+                Str.s(R.string.appr_006),
                 style = MaterialTheme.typography.bodyMedium,
                 color = Palette.TextFaint
             )
@@ -236,7 +238,7 @@ private fun ColorStyleDialog(dark: Boolean, onDismiss: () -> Unit) {
                     val st = ColorStyle.values()
                         .filter { it != ColorStyle.WALLPAPER && it != ColorStyle.CUSTOM }[idx]
                     StyleOption(
-                        name = st.cn,
+                        name = Str.data(st.cn),
                         accents = st.accents(dark, ThemeState.custom(dark)),
                         selected = current == st
                     ) { ThemeState.setStyle(dark, st, ctx) }
@@ -245,12 +247,12 @@ private fun ColorStyleDialog(dark: Boolean, onDismiss: () -> Unit) {
                 item {
                     val supported = ThemeState.supportsWallpaper
                     StyleOption(
-                        name = "壁纸取色",
+                        name = Str.s(R.string.appr_007),
                         accents = wallpaperAccents
                             ?: ThemeState.style(dark).accents(dark, ThemeState.custom(dark)),
                         selected = current == ColorStyle.WALLPAPER,
                         enabled = supported,
-                        caption = if (supported) null else "Android 12 及以上可用"
+                        caption = if (supported) null else Str.s(R.string.appr_008)
                     ) {
                         if (supported) ThemeState.setStyle(dark, ColorStyle.WALLPAPER, ctx)
                     }
@@ -258,7 +260,7 @@ private fun ColorStyleDialog(dark: Boolean, onDismiss: () -> Unit) {
 
                 item {
                     StyleOption(
-                        name = "自定义",
+                        name = Str.s(R.string.appr_009),
                         accents = ColorStyle.CUSTOM.accents(dark, ThemeState.custom(dark)),
                         selected = current == ColorStyle.CUSTOM
                     ) { ThemeState.setStyle(dark, ColorStyle.CUSTOM, ctx) }
@@ -268,7 +270,7 @@ private fun ColorStyleDialog(dark: Boolean, onDismiss: () -> Unit) {
                     item {
                         GlassCard(Modifier.fillMaxWidth(), padding = 14.dp, radius = 20.dp) {
                             Text(
-                                "挑一个主色，其余两色会自动配好",
+                                Str.s(R.string.appr_010),
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = Palette.TextFaint
                             )

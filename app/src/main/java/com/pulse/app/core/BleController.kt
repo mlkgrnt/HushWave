@@ -1,5 +1,7 @@
 package com.pulse.app.core
 
+import com.pulse.app.core.Str
+import com.pulse.app.R
 import android.annotation.SuppressLint
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
@@ -185,7 +187,7 @@ class BleController(context: Context) {
         } else {
             true
         }
-        addLog(TxLog.Dir.TX, bytes, if (ok) "" else "写失败")
+        addLog(TxLog.Dir.TX, bytes, if (ok) "" else Str.s(R.string.ble_000))
         if (ok) lastPacket = bytes
         return ok
     }
@@ -268,7 +270,7 @@ class BleController(context: Context) {
         override fun onScanFailed(errorCode: Int) {
             _scanning.value = false
             publishJob?.cancel()
-            addLog(TxLog.Dir.SYS, ByteArray(0), "扫描启动失败 errorCode=$errorCode")
+            addLog(TxLog.Dir.SYS, ByteArray(0), Str.s(R.string.x_scan_start_failed, errorCode))
             // 1 = SCAN_FAILED_ALREADY_STARTED：系统里还留着上一次的扫描注册。
             // 彻底停一次再重启，避免注册残留导致以后每次扫描都失败、只能杀进程重开。
             if (errorCode == ScanCallback.SCAN_FAILED_ALREADY_STARTED && !scanRetryUsed) {
@@ -279,18 +281,18 @@ class BleController(context: Context) {
                     if (!isActive) return@launch
                     stopScanInternal()
                     startScanInternal()
-                    addLog(TxLog.Dir.SYS, ByteArray(0), "扫描已自动重启")
+                    addLog(TxLog.Dir.SYS, ByteArray(0), Str.s(R.string.ble_001))
                 }
                 return
             }
             _scanError.value = when (errorCode) {
-                ScanCallback.SCAN_FAILED_ALREADY_STARTED -> "扫描没能重启，再点一次试试"
-                ScanCallback.SCAN_FAILED_APPLICATION_REGISTRATION_FAILED -> "蓝牙扫描没注册上，开关一次蓝牙再试"
-                ScanCallback.SCAN_FAILED_INTERNAL_ERROR -> "蓝牙出了点问题，开关一次蓝牙再试"
-                ScanCallback.SCAN_FAILED_FEATURE_UNSUPPORTED -> "这台手机不支持蓝牙扫描"
-                ScanCallback.SCAN_FAILED_OUT_OF_HARDWARE_RESOURCES -> "蓝牙太忙了，稍等几秒再试"
-                ScanCallback.SCAN_FAILED_SCANNING_TOO_FREQUENTLY -> "扫描太频繁，等几秒再试"
-                else -> "扫描没启动成功，再点一次试试"
+                ScanCallback.SCAN_FAILED_ALREADY_STARTED -> Str.s(R.string.ble_002)
+                ScanCallback.SCAN_FAILED_APPLICATION_REGISTRATION_FAILED -> Str.s(R.string.ble_003)
+                ScanCallback.SCAN_FAILED_INTERNAL_ERROR -> Str.s(R.string.ble_004)
+                ScanCallback.SCAN_FAILED_FEATURE_UNSUPPORTED -> Str.s(R.string.ble_005)
+                ScanCallback.SCAN_FAILED_OUT_OF_HARDWARE_RESOURCES -> Str.s(R.string.ble_006)
+                ScanCallback.SCAN_FAILED_SCANNING_TOO_FREQUENTLY -> Str.s(R.string.ble_007)
+                else -> Str.s(R.string.ble_008)
             }
         }
     }
@@ -323,14 +325,14 @@ class BleController(context: Context) {
     private fun startScanInternal() {
         val a = adapter ?: run {
             _scanning.value = false
-            _scanError.value = "这台设备没有蓝牙"
+            _scanError.value = Str.s(R.string.ble_009)
             return
         }
         // 关键：每次启动前无条件停一次，清掉系统侧可能残留的扫描注册。
         // 否则重复 startScan 会回调 SCAN_FAILED_ALREADY_STARTED(1) 并且一直卡住。
         stopScanInternal()
         if (!a.isEnabled) {
-            _scanError.value = "蓝牙还没打开"
+            _scanError.value = Str.s(R.string.ble_010)
             return
         }
         _devices.value = emptyList()
@@ -341,7 +343,7 @@ class BleController(context: Context) {
         try {
             val scanner = a.bluetoothLeScanner
             if (scanner == null) {
-                _scanError.value = "蓝牙还没准备好，稍后再试"
+                _scanError.value = Str.s(R.string.ble_011)
                 return
             }
             scanner.startScan(null, settings, scanCallback)
@@ -350,7 +352,7 @@ class BleController(context: Context) {
             startPublishLoop()
         } catch (e: Exception) {
             _scanning.value = false
-            _scanError.value = "扫描没启动成功，再点一次试试"
+            _scanError.value = Str.s(R.string.ble_008)
         }
     }
 
@@ -428,14 +430,14 @@ class BleController(context: Context) {
                 delay(12_000)
                 if (gen == connectGen && inspecting) {
                     finishInspect()
-                    _state.value = BleState.Failed("读取超时：设备没有回应")
+                    _state.value = BleState.Failed(Str.s(R.string.ble_012))
                 }
             }
         }
         val device: BluetoothDevice = try {
             a.getRemoteDevice(item.address)
         } catch (e: Exception) {
-            _state.value = BleState.Failed("地址无效")
+            _state.value = BleState.Failed(Str.s(R.string.ble_013))
             return
         }
         // 上一次的 GATT 刚 close，等一拍再连，否则部分手机栈会返回一个死连接
@@ -449,7 +451,7 @@ class BleController(context: Context) {
                     device.connectGatt(appContext, false, gattCallback)
                 }
             } catch (e: Exception) {
-                if (gen == connectGen) _state.value = BleState.Failed("连接失败：${e.message ?: "未知错误"}")
+                if (gen == connectGen) _state.value = BleState.Failed(Str.s(R.string.x_connect_failed, e.message ?: Str.s(R.string.x_unknown_error)))
                 return@launch
             }
             // 这 180ms 里用户可能已经点了取消
@@ -475,7 +477,7 @@ class BleController(context: Context) {
         connectedAddress = null
         connectedName = null
         _state.value = BleState.Idle
-        addLog(TxLog.Dir.SYS, ByteArray(0), "已取消连接")
+        addLog(TxLog.Dir.SYS, ByteArray(0), Str.s(R.string.ble_014))
     }
 
     /**
@@ -539,7 +541,7 @@ class BleController(context: Context) {
                 if (wasInspecting) finishInspect()
                 if (_state.value is BleState.Ready || _state.value is BleState.Connecting) {
                     _state.value = BleState.Failed(
-                        if (wasInspecting) "设备拒绝连接，只能靠广播信息判断" else "连接已断开"
+                        if (wasInspecting) Str.s(R.string.ble_015) else Str.s(R.string.ble_016)
                     )
                 }
             }
@@ -549,13 +551,13 @@ class BleController(context: Context) {
             if (g !== gatt) return
             if (status != BluetoothGatt.GATT_SUCCESS) {
                 if (inspecting) finishInspect()
-                _state.value = BleState.Failed("服务发现失败 ($status)")
+                _state.value = BleState.Failed(Str.s(R.string.x_discovery_failed, status))
                 return
             }
             // 特征收集：拿到结构就够了，不发任何控制帧，直接断开
             if (inspecting) {
                 _dump.value = describeGatt(g)
-                addLog(TxLog.Dir.SYS, ByteArray(0), "已读取 GATT 结构")
+                addLog(TxLog.Dir.SYS, ByteArray(0), Str.s(R.string.ble_017))
                 scope.launch {
                     delay(150)
                     if (!inspecting) return@launch
@@ -568,7 +570,7 @@ class BleController(context: Context) {
             try {
                 g.requestMtu(517)
             } catch (e: Exception) {
-                _state.value = BleState.Failed("请求 MTU 失败")
+                _state.value = BleState.Failed(Str.s(R.string.ble_018))
                 return
             }
             scope.launch {
@@ -586,7 +588,7 @@ class BleController(context: Context) {
             try {
                 bindInternal(g, mtu)
             } catch (e: Exception) {
-                _state.value = BleState.Failed("初始化失败：${e.message ?: "未知错误"}")
+                _state.value = BleState.Failed(Str.s(R.string.x_init_failed, e.message ?: Str.s(R.string.x_unknown_error)))
             }
         }
 
@@ -643,7 +645,7 @@ class BleController(context: Context) {
             }
 
             if (service == null || tx == null) {
-                _state.value = BleState.Failed("找到设备，但没有可写特征值")
+                _state.value = BleState.Failed(Str.s(R.string.ble_019))
                 return
             }
 
@@ -666,7 +668,7 @@ class BleController(context: Context) {
                 service = service.uuid.toString(),
                 tx = tx.uuid.toString()
             )
-            addLog(TxLog.Dir.SYS, ByteArray(0), "已就绪 MTU=$mtu  tx=${tx.uuid}")
+            addLog(TxLog.Dir.SYS, ByteArray(0), Str.s(R.string.x_ready_mtu, mtu, tx.uuid.toString()))
             startKeepAlive()
             if (protocolId == "monsterpub") {
                 scope.launch { runMonsterPubHandshake(g) }
@@ -745,14 +747,14 @@ class BleController(context: Context) {
                 ((value[i + 1].toInt() xor key[i].toInt()) and 0xFF).toByte()
             }
             val ok = writeTo(g, ch!!, auth)
-            addLog(TxLog.Dir.SYS, ByteArray(0), "MonsterPub 握手 key=$idx ${if (ok) "成功" else "写入失败"}")
+            addLog(TxLog.Dir.SYS, ByteArray(0), Str.s(R.string.x_mp_handshake, idx, if (ok) Str.s(R.string.x_mp_ok) else Str.s(R.string.x_mp_fail)))
             ok
         } else {
-            addLog(TxLog.Dir.SYS, ByteArray(0), "MonsterPub 握手跳过（读不到挑战串）")
+            addLog(TxLog.Dir.SYS, ByteArray(0), Str.s(R.string.ble_020))
             false
         }
     } catch (e: Exception) {
-        addLog(TxLog.Dir.SYS, ByteArray(0), "MonsterPub 握手异常：${e.message}")
+        addLog(TxLog.Dir.SYS, ByteArray(0), Str.s(R.string.x_mp_error, e.message ?: ""))
         false
     } finally {
         // 无论成败都放行，避免把控制卡死
@@ -824,7 +826,7 @@ class BleController(context: Context) {
     fun sendSet(frames: List<ByteArray>) {
         if (frames.isEmpty()) return
         if (writeChar == null) {
-            frames.forEach { addLog(TxLog.Dir.TX, it, "未连接 · 仅记录") }
+            frames.forEach { addLog(TxLog.Dir.TX, it, Str.s(R.string.ble_021)) }
             return
         }
         writeQueue.trySend(frames)
@@ -857,7 +859,7 @@ class BleController(context: Context) {
         connectedAddress = null
         connectedName = null
         _state.value = BleState.Idle
-        addLog(TxLog.Dir.SYS, ByteArray(0), "已断开")
+        addLog(TxLog.Dir.SYS, ByteArray(0), Str.s(R.string.ble_022))
     }
 }
 

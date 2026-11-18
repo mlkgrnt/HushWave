@@ -1,10 +1,14 @@
 package com.pulse.app.ui.screens
 
+import com.pulse.app.R
+import com.pulse.app.core.LocaleManager
+import com.pulse.app.core.Str
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
+import android.app.Activity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -34,6 +38,8 @@ import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.DeleteOutline
+import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.Language
 import androidx.compose.material.icons.rounded.Description
 import androidx.compose.material.icons.rounded.Memory
 import androidx.compose.material.icons.rounded.Mic
@@ -108,6 +114,8 @@ fun MoreScreen(vm: PulseViewModel) {
     var showManual by remember { mutableStateOf(false) }
     var showMusic by remember { mutableStateOf(false) }
     var showReport by remember { mutableStateOf(false) }
+    var showLang by remember { mutableStateOf(false) }
+    var langTag by remember { mutableStateOf(LocaleManager.selected(ctx)) }
     var crash by remember { mutableStateOf(CrashLog.read(ctx)) }
     var update by remember { mutableStateOf<UpdateInfo?>(null) }
     var checking by remember { mutableStateOf(false) }
@@ -119,21 +127,21 @@ fun MoreScreen(vm: PulseViewModel) {
     fun openUrl(url: String) {
         runCatching {
             ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
-        }.onFailure { vm.notify("没有可以打开链接的应用") }
+        }.onFailure { vm.notify(Str.s(R.string.set_000)) }
     }
 
     fun diagnostics(): String = buildString {
         appendLine("HushWave ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})")
         appendLine("Android ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})")
-        appendLine("设备 ${Build.MANUFACTURER} ${Build.MODEL}")
+        appendLine(Str.s(R.string.x_device_meta, Build.MANUFACTURER, Build.MODEL))
         CrashLog.read(ctx)?.let {
             appendLine()
-            appendLine("--- 最近一次异常 ---")
+            appendLine(Str.s(R.string.set_001))
             appendLine(it.take(4000))
         }
         if (logs.isNotEmpty()) {
             appendLine()
-            appendLine("--- 最近收发 ---")
+            appendLine(Str.s(R.string.set_002))
             logs.takeLast(40).forEach { l ->
                 val body = if (l.bytes.isEmpty()) l.note else l.hex
                 appendLine("${l.timeLabel} ${l.dir} $body")
@@ -144,7 +152,7 @@ fun MoreScreen(vm: PulseViewModel) {
     val audioLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { granted ->
-        if (granted) vm.setMusicSync(true) else vm.notify("没有麦克风权限，无法使用声控")
+        if (granted) vm.setMusicSync(true) else vm.notify(Str.s(R.string.set_003))
     }
 
     fun toggleMusic(enabled: Boolean) {
@@ -165,16 +173,57 @@ fun MoreScreen(vm: PulseViewModel) {
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         item {
-            Text("设置", style = MaterialTheme.typography.headlineLarge, color = Palette.Text)
+            Text(Str.s(R.string.set_004), style = MaterialTheme.typography.headlineLarge, color = Palette.Text)
             VSpace(2.dp)
             Text(
-                "外观、设备记忆、声控与关于",
+                Str.s(R.string.set_005),
                 style = MaterialTheme.typography.bodyMedium,
                 color = Palette.TextFaint
             )
         }
 
         item { AppearanceCard() }
+
+        item {
+            GlassCard(Modifier.fillMaxWidth()) {
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .clickable { showLang = true },
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        Modifier
+                            .size(40.dp)
+                            .clip(RoundedCornerShape(13.dp))
+                            .background(Palette.Cyan.copy(alpha = 0.13f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Rounded.Language, null, tint = Palette.Cyan, modifier = Modifier.size(19.dp))
+                    }
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(Str.s(R.string.lang_title), style = MaterialTheme.typography.titleMedium, color = Palette.Text)
+                        Text(
+                            Str.s(R.string.lang_desc),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = Palette.TextFaint
+                        )
+                    }
+                    Text(
+                        when (langTag) {
+                            "zh" -> Str.s(R.string.lang_zh)
+                            "en" -> Str.s(R.string.lang_en)
+                            else -> Str.s(R.string.lang_follow)
+                        },
+                        style = MaterialTheme.typography.labelLarge,
+                        color = Palette.Cyan
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Icon(Icons.Rounded.ChevronRight, null, tint = Palette.TextFaint, modifier = Modifier.size(18.dp))
+                }
+            }
+        }
 
         item {
             GlassCard(Modifier.fillMaxWidth()) {
@@ -190,9 +239,9 @@ fun MoreScreen(vm: PulseViewModel) {
                     }
                     Spacer(Modifier.width(12.dp))
                     Column(Modifier.weight(1f)) {
-                        Text("我的玩具", style = MaterialTheme.typography.titleMedium, color = Palette.Text)
+                        Text(Str.s(R.string.set_006), style = MaterialTheme.typography.titleMedium, color = Palette.Text)
                         Text(
-                            "${saved.size} 台 · 连接后自动恢复设置",
+                            Str.s(R.string.x_saved_toys, saved.size),
                             style = MaterialTheme.typography.bodyMedium,
                             color = Palette.TextFaint
                         )
@@ -204,7 +253,7 @@ fun MoreScreen(vm: PulseViewModel) {
                                 .clickable { vm.clearAllToys() }
                                 .padding(horizontal = 8.dp, vertical = 5.dp)
                         ) {
-                            Text("清空", style = MaterialTheme.typography.labelSmall, color = Palette.TextFaint)
+                            Text(Str.s(R.string.set_007), style = MaterialTheme.typography.labelSmall, color = Palette.TextFaint)
                         }
                     }
                 }
@@ -212,7 +261,7 @@ fun MoreScreen(vm: PulseViewModel) {
                 if (saved.isEmpty()) {
                     VSpace(12.dp)
                     Text(
-                        "连过一次的玩具会出现在这里，下次不用重新识别。",
+                        Str.s(R.string.set_008),
                         style = MaterialTheme.typography.bodyMedium,
                         color = Palette.TextFaint
                     )
@@ -233,12 +282,12 @@ fun MoreScreen(vm: PulseViewModel) {
                             Spacer(Modifier.width(9.dp))
                             Column(Modifier.weight(1f)) {
                                 Text(
-                                    shortName(rec.modelName, rec.brand),
+                                    shortName(rec.modelName, Str.data(rec.brand)),
                                     style = MaterialTheme.typography.labelLarge,
                                     color = Palette.Text
                                 )
                                 Text(
-                                    "${rec.brand} · ${rec.modules.size} 个通道",
+                                    Str.s(R.string.x_record_channels, Str.data(rec.brand), rec.modules.size),
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = Palette.TextFaint,
                                     maxLines = 1,
@@ -279,9 +328,9 @@ fun MoreScreen(vm: PulseViewModel) {
                     }
                     Spacer(Modifier.width(12.dp))
                     Column(Modifier.weight(1f)) {
-                        Text("声控", style = MaterialTheme.typography.titleMedium, color = Palette.Text)
+                        Text(Str.s(R.string.set_009), style = MaterialTheme.typography.titleMedium, color = Palette.Text)
                         Text(
-                            if (music.running) "正在听声音" else "跟着音乐或声音起伏",
+                            if (music.running) Str.s(R.string.set_010) else Str.s(R.string.set_011),
                             style = MaterialTheme.typography.bodyMedium,
                             color = Palette.TextFaint
                         )
@@ -307,34 +356,34 @@ fun MoreScreen(vm: PulseViewModel) {
                 )
                 VSpace(10.dp)
                 Row(Modifier.fillMaxWidth()) {
-                    MiniMetric("低频", music.bass, Modifier.weight(1f))
-                    MiniMetric("中频", music.mid, Modifier.weight(1f))
-                    MiniMetric("高频", music.high, Modifier.weight(1f))
-                    MiniMetric("强度", music.intensity, Modifier.weight(1f))
+                    MiniMetric(Str.s(R.string.set_012), music.bass, Modifier.weight(1f))
+                    MiniMetric(Str.s(R.string.set_013), music.mid, Modifier.weight(1f))
+                    MiniMetric(Str.s(R.string.set_014), music.high, Modifier.weight(1f))
+                    MiniMetric(Str.s(R.string.set_015), music.intensity, Modifier.weight(1f))
                 }
                 VSpace(12.dp)
                 GlowSlider(
-                    label = "灵敏度",
+                    label = Str.s(R.string.set_016),
                     value = sensitivity,
                     onChange = { vm.setMusicSensitivity(it) },
                     accent = Palette.Cyan
                 )
                 VSpace(6.dp)
                 Text(
-                    "安静时会自动归零；环境越吵，灵敏度可以往左调。",
+                    Str.s(R.string.set_017),
                     style = MaterialTheme.typography.bodyMedium,
                     color = Palette.TextFaint
                 )
                 if (!canControl) {
                     VSpace(10.dp)
                     Text(
-                        "先连接玩具，声控才有作用对象。",
+                        Str.s(R.string.set_018),
                         style = MaterialTheme.typography.bodyMedium,
                         color = Palette.TextFaint
                     )
                 } else if (modules.isNotEmpty()) {
                     VSpace(12.dp)
-                    Text("作用于", style = MaterialTheme.typography.labelSmall, color = Palette.TextFaint)
+                    Text(Str.s(R.string.set_019), style = MaterialTheme.typography.labelSmall, color = Palette.TextFaint)
                     VSpace(8.dp)
                     Row(
                         Modifier
@@ -365,7 +414,7 @@ fun MoreScreen(vm: PulseViewModel) {
                                     .padding(horizontal = 12.dp, vertical = 7.dp)
                             ) {
                                 Text(
-                                    spec.label,
+                                    Str.data(spec.label),
                                     style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 0.sp),
                                     color = if (on) Palette.Violet else Palette.TextDim
                                 )
@@ -390,9 +439,9 @@ fun MoreScreen(vm: PulseViewModel) {
                     }
                     Spacer(Modifier.width(12.dp))
                     Column(Modifier.weight(1f)) {
-                        Text("音乐", style = MaterialTheme.typography.titleMedium, color = Palette.Text)
+                        Text(Str.s(R.string.set_020), style = MaterialTheme.typography.titleMedium, color = Palette.Text)
                         Text(
-                            "导入歌曲，按激昂程度自动控制",
+                            Str.s(R.string.set_021),
                             style = MaterialTheme.typography.bodyMedium,
                             color = Palette.TextFaint
                         )
@@ -405,7 +454,7 @@ fun MoreScreen(vm: PulseViewModel) {
                             .clickable { showMusic = true }
                             .padding(horizontal = 12.dp, vertical = 7.dp)
                     ) {
-                        Text("打开", style = MaterialTheme.typography.labelLarge, color = Palette.TextDim)
+                        Text(Str.s(R.string.set_022), style = MaterialTheme.typography.labelLarge, color = Palette.TextDim)
                     }
                 }
             }
@@ -413,16 +462,16 @@ fun MoreScreen(vm: PulseViewModel) {
 
         item {
             GlassCard(Modifier.fillMaxWidth()) {
-                SectionHeader("关于", BuildConfig.VERSION_NAME)
+                SectionHeader(Str.s(R.string.set_023), BuildConfig.VERSION_NAME)
                 Text(
-                    "支持 Galaku、Svakom、Lovense、We-Vibe、MagicMotion、Kiiroo、Satisfyer，" +
-                        "以及小怪兽 MonsterPub、网易春风 TryFun、杰士邦（目前只有小粉饼 G29D）。",
+                    Str.s(R.string.set_024) +
+                        Str.s(R.string.set_025),
                     style = MaterialTheme.typography.bodyMedium,
                     color = Palette.TextDim
                 )
                 VSpace(8.dp)
                 Text(
-                    "所有指令都在手机本地生成，通过蓝牙直接发送，不联网、不上传数据。",
+                    Str.s(R.string.set_026),
                     style = MaterialTheme.typography.bodyMedium,
                     color = Palette.TextFaint
                 )
@@ -430,12 +479,12 @@ fun MoreScreen(vm: PulseViewModel) {
                 DividerLine()
                 VSpace(12.dp)
                 ActionRow(
-                    title = if (checking) "正在检查…" else "检查更新",
-                    subtitle = checkMsg ?: "当前版本 ${BuildConfig.VERSION_NAME}",
+                    title = if (checking) Str.s(R.string.set_027) else Str.s(R.string.set_028),
+                    subtitle = checkMsg ?: Str.s(R.string.x_version_current, BuildConfig.VERSION_NAME),
                     icon = Icons.Rounded.SystemUpdate,
                     accent = Palette.Cyan,
                     enabled = !checking,
-                    label = if (checking) "…" else "检查"
+                    label = if (checking) "…" else Str.s(R.string.set_029)
                 ) {
                     if (checking) return@ActionRow
                     checking = true
@@ -445,17 +494,17 @@ fun MoreScreen(vm: PulseViewModel) {
                             .onSuccess { info ->
                                 update = info
                                 checkMsg = if (UpdateChecker.isNewer(info.version, BuildConfig.VERSION_NAME)) {
-                                    "发现新版本 ${info.version}"
+                                    Str.s(R.string.x_version_new, info.version)
                                 } else {
-                                    "已是最新版本"
+                                    Str.s(R.string.set_030)
                                 }
                                 if (!UpdateChecker.isNewer(info.version, BuildConfig.VERSION_NAME)) {
-                                    vm.notify("已是最新版本")
+                                    vm.notify(Str.s(R.string.set_030))
                                 }
                             }
                             .onFailure { e ->
-                                checkMsg = "检查失败：${e.message ?: "网络不可用"}"
-                                vm.notify("检查更新失败，稍后再试")
+                                checkMsg = Str.s(R.string.x_check_failed, e.message ?: Str.s(R.string.x_network_unavailable))
+                                vm.notify(Str.s(R.string.set_031))
                             }
                         checking = false
                     }
@@ -473,7 +522,7 @@ fun MoreScreen(vm: PulseViewModel) {
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            "前往下载 ${upd.version}",
+                            Str.s(R.string.x_download, upd.version),
                             style = MaterialTheme.typography.labelLarge,
                             color = Color.White
                         )
@@ -481,28 +530,28 @@ fun MoreScreen(vm: PulseViewModel) {
                 }
                 VSpace(12.dp)
                 ActionRow(
-                    title = "GitHub 仓库",
+                    title = Str.s(R.string.set_032),
                     subtitle = "github.com/mlkgrnt/HushWave",
                     icon = Icons.Rounded.OpenInNew,
                     accent = Palette.Violet,
-                    label = "打开"
+                    label = Str.s(R.string.set_022)
                 ) {
                     openUrl(UpdateChecker.REPO)
                 }
                 VSpace(12.dp)
                 ActionRow(
-                    title = "开源许可",
-                    subtitle = "GPL-3.0-or-later · 全文随安装包附带",
+                    title = Str.s(R.string.set_033),
+                    subtitle = Str.s(R.string.set_034),
                     icon = Icons.Rounded.Description,
                     accent = Palette.Lime,
-                    label = "查看"
+                    label = Str.s(R.string.set_035)
                 ) {
                     openUrl(UpdateChecker.REPO + "/blob/main/LICENSE")
                 }
                 VSpace(12.dp)
                 Text(
-                    "本应用以 GPL-3.0-or-later 开源，分发衍生作品时须同样开源。" +
-                        "部分品牌的指令格式参考了 Buttplug（BSD-3-Clause）。",
+                    Str.s(R.string.set_036) +
+                        Str.s(R.string.set_037),
                     style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 0.2.sp),
                     color = Palette.TextFaint
                 )
@@ -513,9 +562,9 @@ fun MoreScreen(vm: PulseViewModel) {
             GlassCard(Modifier.fillMaxWidth(), padding = 16.dp) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
-                        Text("手动添加设备", style = MaterialTheme.typography.titleMedium, color = Palette.Text)
+                        Text(Str.s(R.string.set_038), style = MaterialTheme.typography.titleMedium, color = Palette.Text)
                         Text(
-                            "没识别出来的玩具，自己指定品牌和型号",
+                            Str.s(R.string.set_039),
                             style = MaterialTheme.typography.bodyMedium,
                             color = Palette.TextFaint
                         )
@@ -528,7 +577,7 @@ fun MoreScreen(vm: PulseViewModel) {
                             .clickable { showManual = true }
                             .padding(horizontal = 12.dp, vertical = 7.dp)
                     ) {
-                        Text("添加", style = MaterialTheme.typography.labelLarge, color = Palette.TextDim)
+                        Text(Str.s(R.string.set_040), style = MaterialTheme.typography.labelLarge, color = Palette.TextDim)
                     }
                 }
             }
@@ -548,9 +597,9 @@ fun MoreScreen(vm: PulseViewModel) {
                     }
                     Spacer(Modifier.width(12.dp))
                     Column(Modifier.weight(1f)) {
-                        Text("欢迎提 issue", style = MaterialTheme.typography.titleMedium, color = Palette.Text)
+                        Text(Str.s(R.string.set_041), style = MaterialTheme.typography.titleMedium, color = Palette.Text)
                         Text(
-                            "遇到问题、想加新玩具，都欢迎到仓库里说一声",
+                            Str.s(R.string.set_042),
                             style = MaterialTheme.typography.bodyMedium,
                             color = Palette.TextFaint
                         )
@@ -566,11 +615,11 @@ fun MoreScreen(vm: PulseViewModel) {
                             .background(Palette.ActionBrush)
                             .clickable {
                                 clipboard.setText(AnnotatedString(diagnostics()))
-                                vm.notify("诊断信息已复制，粘贴到 issue 里即可")
+                                vm.notify(Str.s(R.string.set_043))
                             },
                         contentAlignment = Alignment.Center
                     ) {
-                        Text("复制诊断信息", style = MaterialTheme.typography.labelLarge, color = Color.White)
+                        Text(Str.s(R.string.set_044), style = MaterialTheme.typography.labelLarge, color = Color.White)
                     }
                     Box(
                         Modifier
@@ -582,7 +631,7 @@ fun MoreScreen(vm: PulseViewModel) {
                             .clickable { showLogs = true },
                         contentAlignment = Alignment.Center
                     ) {
-                        Text("连接记录", style = MaterialTheme.typography.labelLarge, color = Palette.TextDim)
+                        Text(Str.s(R.string.set_045), style = MaterialTheme.typography.labelLarge, color = Palette.TextDim)
                     }
                     Box(
                         Modifier
@@ -609,7 +658,7 @@ fun MoreScreen(vm: PulseViewModel) {
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        "未收录设备？收集特征后提 issue",
+                        Str.s(R.string.set_046),
                         style = MaterialTheme.typography.labelLarge,
                         color = Palette.TextDim
                     )
@@ -620,13 +669,13 @@ fun MoreScreen(vm: PulseViewModel) {
                     VSpace(10.dp)
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
-                            "有一次异常退出记录",
+                            Str.s(R.string.set_047),
                             style = MaterialTheme.typography.bodyMedium,
                             color = Palette.Rose,
                             modifier = Modifier.weight(1f)
                         )
                         Text(
-                            "清空",
+                            Str.s(R.string.set_007),
                             style = MaterialTheme.typography.labelSmall,
                             color = Palette.TextFaint,
                             modifier = Modifier.clickable {
@@ -654,6 +703,16 @@ fun MoreScreen(vm: PulseViewModel) {
 
     if (showMusic) {
         MusicDialog(vm) { showMusic = false }
+    }
+
+    if (showLang) {
+        LanguageDialog(langTag, onPick = { tag ->
+            LocaleManager.set(ctx, tag)
+            Str.init(ctx)
+            langTag = tag
+            showLang = false
+            (ctx as? Activity)?.recreate()
+        }, onDismiss = { showLang = false })
     }
 
     if (showManual) {
@@ -767,7 +826,7 @@ private fun DialogLogs(crash: String?, logs: List<TxLog>, onDismiss: () -> Unit)
                 .padding(20.dp)
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("连接记录", style = MaterialTheme.typography.headlineMedium, color = Palette.Text)
+                Text(Str.s(R.string.set_045), style = MaterialTheme.typography.headlineMedium, color = Palette.Text)
                 Spacer(Modifier.weight(1f))
                 Box(
                     Modifier
@@ -782,7 +841,7 @@ private fun DialogLogs(crash: String?, logs: List<TxLog>, onDismiss: () -> Unit)
             }
             VSpace(4.dp)
             Text(
-                "只记录蓝牙收发，不含个人信息。遇到问题可以截图，到 GitHub 提 issue 反馈。",
+                Str.s(R.string.set_048),
                 style = MaterialTheme.typography.bodyMedium,
                 color = Palette.TextFaint
             )
@@ -790,7 +849,7 @@ private fun DialogLogs(crash: String?, logs: List<TxLog>, onDismiss: () -> Unit)
             LazyColumn(Modifier.fillMaxSize()) {
                 if (crash != null) {
                     item {
-                        Text("最近一次异常", style = MaterialTheme.typography.labelSmall, color = Palette.Rose)
+                        Text(Str.s(R.string.set_049), style = MaterialTheme.typography.labelSmall, color = Palette.Rose)
                         VSpace(6.dp)
                         Text(
                             crash,
@@ -805,13 +864,13 @@ private fun DialogLogs(crash: String?, logs: List<TxLog>, onDismiss: () -> Unit)
                     }
                 }
                 item {
-                    Text("最近收发", style = MaterialTheme.typography.labelSmall, color = Palette.TextFaint)
+                    Text(Str.s(R.string.set_050), style = MaterialTheme.typography.labelSmall, color = Palette.TextFaint)
                     VSpace(8.dp)
                 }
                 if (logs.isEmpty()) {
                     item {
                         Text(
-                            "还没有记录。连接设备后会出现。",
+                            Str.s(R.string.set_051),
                             style = MaterialTheme.typography.bodyMedium,
                             color = Palette.TextFaint
                         )
@@ -835,8 +894,8 @@ private fun DialogLogs(crash: String?, logs: List<TxLog>, onDismiss: () -> Unit)
                             )
                             Text(
                                 when (l.dir) {
-                                    TxLog.Dir.TX -> "发送 "
-                                    TxLog.Dir.RX -> "接收 "
+                                    TxLog.Dir.TX -> Str.s(R.string.set_052)
+                                    TxLog.Dir.RX -> Str.s(R.string.set_053)
                                     TxLog.Dir.SYS -> "-- "
                                 },
                                 style = MaterialTheme.typography.labelSmall.copy(
@@ -901,7 +960,7 @@ private fun DeviceReportDialog(vm: PulseViewModel, onDismiss: () -> Unit) {
     fun openIssue() {
         runCatching {
             ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(UpdateChecker.ISSUES + "/new")))
-        }.onFailure { vm.notify("没有可以打开链接的应用") }
+        }.onFailure { vm.notify(Str.s(R.string.set_000)) }
     }
 
     LaunchedEffect(picked) {
@@ -909,8 +968,8 @@ private fun DeviceReportDialog(vm: PulseViewModel, onDismiss: () -> Unit) {
         report = null
         hint = null
         when (bleState) {
-            is BleState.Ready -> finish(item, null, "当前已连接其它设备，未读取 GATT")
-            is BleState.Connecting -> finish(item, null, "正在连接其它设备，未读取 GATT")
+            is BleState.Ready -> finish(item, null, Str.s(R.string.set_054))
+            is BleState.Connecting -> finish(item, null, Str.s(R.string.set_055))
             else -> {
                 baseline = dump
                 reading = true
@@ -940,12 +999,12 @@ private fun DeviceReportDialog(vm: PulseViewModel, onDismiss: () -> Unit) {
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text("设备特征", style = MaterialTheme.typography.headlineMedium, color = Palette.Text)
+                    Text(Str.s(R.string.set_056), style = MaterialTheme.typography.headlineMedium, color = Palette.Text)
                     Text(
                         when {
-                            report != null -> "复制后贴到新开的 issue 里"
-                            picked != null -> "正在读取这台设备的结构"
-                            else -> "挑一台没被收录的设备，读一遍它的广播和 GATT"
+                            report != null -> Str.s(R.string.set_057)
+                            picked != null -> Str.s(R.string.set_058)
+                            else -> Str.s(R.string.set_059)
                         },
                         style = MaterialTheme.typography.bodyMedium,
                         color = Palette.TextFaint
@@ -971,7 +1030,7 @@ private fun DeviceReportDialog(vm: PulseViewModel, onDismiss: () -> Unit) {
                 val text = report ?: ""
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        hint ?: "只读结构，未下发控制帧",
+                        hint ?: Str.s(R.string.set_060),
                         style = MaterialTheme.typography.bodyMedium,
                         color = if (hint == null) Palette.TextFaint else Palette.Rose,
                         modifier = Modifier.weight(1f)
@@ -1008,11 +1067,11 @@ private fun DeviceReportDialog(vm: PulseViewModel, onDismiss: () -> Unit) {
                             .background(Palette.ActionBrush)
                             .clickable {
                                 clipboard.setText(AnnotatedString(text))
-                                vm.notify("已复制，粘贴到 issue 里即可")
+                                vm.notify(Str.s(R.string.set_061))
                             },
                         contentAlignment = Alignment.Center
                     ) {
-                        Text("复制报告", style = MaterialTheme.typography.labelLarge, color = Color.White)
+                        Text(Str.s(R.string.set_062), style = MaterialTheme.typography.labelLarge, color = Color.White)
                     }
                     Box(
                         Modifier
@@ -1024,7 +1083,7 @@ private fun DeviceReportDialog(vm: PulseViewModel, onDismiss: () -> Unit) {
                             .clickable { openIssue() },
                         contentAlignment = Alignment.Center
                     ) {
-                        Text("打开 issue", style = MaterialTheme.typography.labelLarge, color = Palette.TextDim)
+                        Text(Str.s(R.string.set_063), style = MaterialTheme.typography.labelLarge, color = Palette.TextDim)
                     }
                 }
                 VSpace(9.dp)
@@ -1040,7 +1099,7 @@ private fun DeviceReportDialog(vm: PulseViewModel, onDismiss: () -> Unit) {
                         },
                     contentAlignment = Alignment.Center
                 ) {
-                    Text("读另一台", style = MaterialTheme.typography.labelLarge, color = Palette.TextFaint)
+                    Text(Str.s(R.string.set_064), style = MaterialTheme.typography.labelLarge, color = Palette.TextFaint)
                 }
             } else if (reading) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1052,12 +1111,12 @@ private fun DeviceReportDialog(vm: PulseViewModel, onDismiss: () -> Unit) {
                     Spacer(Modifier.width(14.dp))
                     Column {
                         Text(
-                            "正在连接 ${picked?.name ?: ""}",
+                            Str.s(R.string.x_connecting, picked?.name ?: ""),
                             style = MaterialTheme.typography.titleMedium,
                             color = Palette.Text
                         )
                         Text(
-                            "只读取服务和特征，不会让设备动。读不到会自动改用广播信息。",
+                            Str.s(R.string.set_065),
                             style = MaterialTheme.typography.bodyMedium,
                             color = Palette.TextFaint
                         )
@@ -1072,11 +1131,11 @@ private fun DeviceReportDialog(vm: PulseViewModel, onDismiss: () -> Unit) {
                         .background(Palette.overlay(0.05f))
                         .clickable {
                             vm.ble.cancelConnect()
-                            picked?.let { finish(it, null, "已手动停止读取") }
+                            picked?.let { finish(it, null, Str.s(R.string.set_066)) }
                         },
                     contentAlignment = Alignment.Center
                 ) {
-                    Text("停止", style = MaterialTheme.typography.labelLarge, color = Palette.TextDim)
+                    Text(Str.s(R.string.set_067), style = MaterialTheme.typography.labelLarge, color = Palette.TextDim)
                 }
             } else {
                 var pendingAction by remember { mutableStateOf<(() -> Unit)?>(null) }
@@ -1124,7 +1183,7 @@ private fun DeviceReportDialog(vm: PulseViewModel, onDismiss: () -> Unit) {
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            if (scanning) "停止扫描" else "扫描设备",
+                            if (scanning) Str.s(R.string.set_068) else Str.s(R.string.set_069),
                             style = MaterialTheme.typography.titleMedium,
                             color = if (scanning) Palette.TextDim else Color.White
                         )
@@ -1133,7 +1192,7 @@ private fun DeviceReportDialog(vm: PulseViewModel, onDismiss: () -> Unit) {
                 VSpace(14.dp)
                 if (devices.isEmpty()) {
                     Text(
-                        "还没有扫描到设备。让玩具开机，再点上面的扫描。",
+                        Str.s(R.string.set_070),
                         style = MaterialTheme.typography.bodyMedium,
                         color = Palette.TextFaint
                     )
@@ -1167,7 +1226,7 @@ private fun DeviceReportDialog(vm: PulseViewModel, onDismiss: () -> Unit) {
                             val match = item.match
                             if (match != null) {
                                 Pill(
-                                    if (match.weak) "可能是 ${match.protocol.brand}" else match.protocol.brand,
+                                    if (match.weak) Str.s(R.string.x_maybe_brand, Str.data(match.protocol.brand)) else Str.data(match.protocol.brand),
                                     if (match.weak) Palette.TextDim else Palette.Violet
                                 )
                                 Spacer(Modifier.width(6.dp))
@@ -1191,4 +1250,48 @@ private fun shortName(name: String, brand: String): String {
     val prefixes = listOf(brand, "Svakom", "Galaku", "Lovense", "WeVibe", "We-Vibe", "MagicMotion")
     val hit = prefixes.filter { it.isNotBlank() }.firstOrNull { name.startsWith("$it ", true) }
     return if (hit != null) name.substring(hit.length).trim() else name
+}
+
+@Composable
+private fun LanguageDialog(
+    current: String?,
+    onPick: (String?) -> Unit,
+    onDismiss: () -> Unit
+) {
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties()) {
+        Column(
+            Modifier
+                .clip(RoundedCornerShape(22.dp))
+                .background(Palette.DialogBg)
+                .padding(20.dp)
+        ) {
+            Text(
+                Str.s(R.string.lang_title),
+                style = MaterialTheme.typography.headlineSmall,
+                color = Palette.Text
+            )
+            VSpace(12.dp)
+            listOf<Pair<String?, Int>>(
+                null to R.string.lang_follow,
+                "zh" to R.string.lang_zh,
+                "en" to R.string.lang_en
+            ).forEach { (tag, res) ->
+                val active = current == tag
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(if (active) Palette.Violet.copy(alpha = 0.14f) else Color.Transparent)
+                        .clickable { onPick(tag) }
+                        .padding(horizontal = 14.dp, vertical = 13.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(Str.s(res), style = MaterialTheme.typography.titleMedium, color = Palette.Text)
+                    Spacer(Modifier.weight(1f))
+                    if (active) Icon(Icons.Rounded.Check, null, tint = Palette.Violet, modifier = Modifier.size(18.dp))
+                }
+            }
+        }
+    }
 }

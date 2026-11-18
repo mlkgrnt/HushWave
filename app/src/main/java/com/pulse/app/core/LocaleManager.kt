@@ -47,4 +47,10 @@ object LocaleManager {
 
     /** 给 ViewModel / 控制器这类拿不到 Activity 的地方用 */
     fun localized(ctx: Context): Context = wrap(ctx)
+
+    /** 当前是否英文（没选过就看系统） */
+    fun isEnglish(ctx: Context): Boolean {
+        val tag = selected(ctx) ?: Locale.getDefault().language
+        return !tag.startsWith("zh")
+    }
 }

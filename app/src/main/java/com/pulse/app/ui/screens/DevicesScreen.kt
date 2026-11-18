@@ -1,5 +1,7 @@
 package com.pulse.app.ui.screens
 
+import com.pulse.app.R
+import com.pulse.app.core.Str
 import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
@@ -134,12 +136,12 @@ fun DevicesScreen(vm: PulseViewModel, onOpenControl: () -> Unit) {
                 color = Palette.Text,
                 modifier = Modifier.combinedClickable(
                     onClick = {},
-                    onLongClick = { vm.notify("预览模式"); vm.loadDemo(); onOpenControl() }
+                    onLongClick = { vm.notify(Str.s(R.string.dev_000)); vm.loadDemo(); onOpenControl() }
                 )
             )
             VSpace(2.dp)
             Text(
-                "连接你的玩具",
+                Str.s(R.string.dev_001),
                 style = MaterialTheme.typography.bodyMedium,
                 color = Palette.TextFaint
             )
@@ -153,9 +155,9 @@ fun DevicesScreen(vm: PulseViewModel, onOpenControl: () -> Unit) {
                     .horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                BrandChip("全部", brand == null) { vm.setBrandFilter(null) }
+                BrandChip(Str.s(R.string.dev_002), brand == null) { vm.setBrandFilter(null) }
                 vm.brands.forEach { b ->
-                    BrandChip(b, brand == b) { vm.setBrandFilter(b) }
+                    BrandChip(Str.data(b), brand == b) { vm.setBrandFilter(b) }
                 }
             }
             VSpace(16.dp)
@@ -181,12 +183,12 @@ fun DevicesScreen(vm: PulseViewModel, onOpenControl: () -> Unit) {
                         Spacer(Modifier.width(14.dp))
                         Column(Modifier.weight(1f)) {
                             Text(
-                                "正在连接 ${s.name}",
+                                Str.s(R.string.x_connecting, s.name),
                                 style = MaterialTheme.typography.titleMedium,
                                 color = Palette.Text
                             )
                             Text(
-                                "请让玩具保持开机并靠近手机",
+                                Str.s(R.string.dev_003),
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = Palette.TextFaint
                             )
@@ -201,7 +203,7 @@ fun DevicesScreen(vm: PulseViewModel, onOpenControl: () -> Unit) {
                                 .padding(horizontal = 14.dp, vertical = 9.dp)
                         ) {
                             Text(
-                                "取消",
+                                Str.s(R.string.dev_004),
                                 style = MaterialTheme.typography.labelLarge,
                                 color = Palette.TextDim
                             )
@@ -213,18 +215,18 @@ fun DevicesScreen(vm: PulseViewModel, onOpenControl: () -> Unit) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         StatusDot(Palette.Rose, 8.dp)
                         Spacer(Modifier.width(12.dp))
-                        Text("没连上", style = MaterialTheme.typography.titleMedium, color = Palette.Text)
+                        Text(Str.s(R.string.dev_005), style = MaterialTheme.typography.titleMedium, color = Palette.Text)
                     }
                     VSpace(8.dp)
-                    Text(s.reason, style = MaterialTheme.typography.bodyMedium, color = Palette.TextFaint)
+                    Text(Str.data(s.reason), style = MaterialTheme.typography.bodyMedium, color = Palette.TextFaint)
                 }
 
                 else -> GlassCard(Modifier.fillMaxWidth()) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
-                            Text("先选品牌，再扫描", style = MaterialTheme.typography.titleMedium, color = Palette.Text)
+                            Text(Str.s(R.string.dev_006), style = MaterialTheme.typography.titleMedium, color = Palette.Text)
                             Text(
-                                "这里只扫已支持的玩具；要找没收录的设备去设置页「手动添加」",
+                                Str.s(R.string.dev_007),
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = Palette.TextFaint
                             )
@@ -265,7 +267,7 @@ fun DevicesScreen(vm: PulseViewModel, onOpenControl: () -> Unit) {
                         )
                         Spacer(Modifier.width(8.dp))
                         Text(
-                            if (scanning) "停止扫描" else "扫描设备",
+                            if (scanning) Str.s(R.string.dev_008) else Str.s(R.string.dev_009),
                             style = MaterialTheme.typography.titleMedium,
                             color = Color.White
                         )
@@ -288,7 +290,7 @@ fun DevicesScreen(vm: PulseViewModel, onOpenControl: () -> Unit) {
         }
 
         if (devices.isNotEmpty()) {
-            item { SectionHeader("附近设备", "${devices.size} 台") }
+            item { SectionHeader(Str.s(R.string.dev_010), Str.s(R.string.x_devices_count, devices.size)) }
             items(devices, key = { "scan:${it.address}" }) { item ->
                 ScanRow(
                     item = item,
@@ -306,7 +308,7 @@ fun DevicesScreen(vm: PulseViewModel, onOpenControl: () -> Unit) {
             if (uncertain > 0) {
                 item {
                     Text(
-                        "另有 $uncertain 台设备只有共用蓝牙服务，分不出是不是玩具，已收进「设置 → 手动添加设备」。",
+                        Str.s(R.string.x_uncertain_hint, uncertain),
                         style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 0.3.sp),
                         color = Palette.TextFaint
                     )
@@ -325,7 +327,7 @@ fun DevicesScreen(vm: PulseViewModel, onOpenControl: () -> Unit) {
                         modifier = Modifier.size(16.dp)
                     )
                     Spacer(Modifier.width(7.dp))
-                    SectionHeader("我的玩具", "点一下即可连接", Modifier.weight(1f))
+                    SectionHeader(Str.s(R.string.dev_011), Str.s(R.string.dev_012), Modifier.weight(1f))
                 }
             }
             items(saved, key = { "mem:${it.address}" }) { rec ->
@@ -335,7 +337,7 @@ fun DevicesScreen(vm: PulseViewModel, onOpenControl: () -> Unit) {
                     onConnect = {
                         val hit = vm.ble.devices.value.firstOrNull { it.address.equals(rec.address, true) }
                         if (hit != null) withPermission { vm.connect(hit) }
-                        else vm.notify("先扫描，让玩具出现在附近设备里")
+                        else vm.notify(Str.s(R.string.dev_013))
                     }
                 )
                 VSpace(9.dp)
@@ -345,7 +347,7 @@ fun DevicesScreen(vm: PulseViewModel, onOpenControl: () -> Unit) {
 
         item {
             Text(
-                "找不到自己的玩具？到「设置 → 手动添加设备」里指定品牌",
+                Str.s(R.string.dev_014),
                 style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 0.4.sp),
                 color = Palette.TextFaint,
                 modifier = Modifier.padding(top = 4.dp)
@@ -420,7 +422,7 @@ private fun ConnectedCard(
             Column(Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        record?.let { shortModel(it) } ?: "已连接",
+                        record?.let { shortModel(it) } ?: Str.s(R.string.dev_015),
                         style = MaterialTheme.typography.titleLarge,
                         color = Palette.Text
                     )
@@ -428,7 +430,7 @@ private fun ConnectedCard(
                     StatusDot(Palette.Lime)
                 }
                 Text(
-                    record?.brand?.plus(" · ")?.plus("${record.modules.size} 个通道") ?: "",
+                    record?.brand?.plus(" · ")?.plus(Str.s(R.string.x_channels_count, record.modules.size)) ?: "",
                     style = MaterialTheme.typography.bodyMedium,
                     color = Palette.TextFaint
                 )
@@ -438,7 +440,7 @@ private fun ConnectedCard(
         DividerLine()
         VSpace(12.dp)
         Text(
-            record?.modules?.joinToString("  ") { it.label } ?: "",
+            record?.modules?.joinToString("  ") { Str.data(it.label) } ?: "",
             style = MaterialTheme.typography.bodyMedium,
             color = Palette.TextDim
         )
@@ -453,7 +455,7 @@ private fun ConnectedCard(
                     .clickable(onClick = onControl),
                 contentAlignment = Alignment.Center
             ) {
-                Text("进入控制", style = MaterialTheme.typography.labelLarge, color = Color.White)
+                Text(Str.s(R.string.dev_016), style = MaterialTheme.typography.labelLarge, color = Color.White)
             }
             Box(
                 Modifier
@@ -468,7 +470,7 @@ private fun ConnectedCard(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Rounded.Tune, null, tint = Palette.TextDim, modifier = Modifier.size(15.dp))
                     Spacer(Modifier.width(5.dp))
-                    Text("通道", style = MaterialTheme.typography.labelLarge, color = Palette.TextDim)
+                    Text(Str.s(R.string.dev_017), style = MaterialTheme.typography.labelLarge, color = Palette.TextDim)
                 }
             }
             Box(
@@ -481,7 +483,7 @@ private fun ConnectedCard(
                     .padding(horizontal = 14.dp),
                 contentAlignment = Alignment.Center
             ) {
-                Text("断开", style = MaterialTheme.typography.labelLarge, color = Palette.TextDim)
+                Text(Str.s(R.string.dev_018), style = MaterialTheme.typography.labelLarge, color = Palette.TextDim)
             }
         }
     }
@@ -526,13 +528,13 @@ private fun ScanRow(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     if (match != null) {
                         Text(
-                            match.protocol.brand,
+                            Str.data(match.protocol.brand),
                             style = MaterialTheme.typography.bodyMedium,
                             color = Palette.TextDim
                         )
                         Spacer(Modifier.width(8.dp))
                         Text(
-                            "${match.model?.modules?.size ?: match.protocol.defaults.size} 个通道",
+                            Str.s(R.string.x_channels_count, match.model?.modules?.size ?: match.protocol.defaults.size),
                             style = MaterialTheme.typography.bodyMedium,
                             color = Palette.TextFaint
                         )
@@ -540,7 +542,7 @@ private fun ScanRow(
                 }
             }
             if (connected) {
-                Pill("已连接", Palette.Lime)
+                Pill(Str.s(R.string.dev_015), Palette.Lime)
             } else {
                 Column(horizontalAlignment = Alignment.End) {
                     Text(
@@ -592,14 +594,14 @@ private fun MemoryRow(record: ToyRecord, onDelete: () -> Unit, onConnect: () -> 
                     )
                     Spacer(Modifier.width(7.dp))
                     Text(
-                        record.brand,
+                        Str.data(record.brand),
                         style = MaterialTheme.typography.labelSmall,
                         color = Palette.TextFaint
                     )
                 }
                 VSpace(3.dp)
                 Text(
-                    record.modules.joinToString(" · ") { it.label },
+                    record.modules.joinToString(" · ") { Str.data(it.label) },
                     style = MaterialTheme.typography.bodyMedium,
                     color = Palette.TextFaint
                 )
@@ -630,7 +632,7 @@ private fun signalColor(rssi: Int) = when {
 }
 
 private fun shortModel(record: ToyRecord): String {    val name = record.modelName
-    val prefixes = listOf(record.brand, "Svakom", "Galaku", "Jissbon", "杰士邦", "Lovense", "WeVibe", "We-Vibe", "MagicMotion")
+    val prefixes = listOf(record.brand, "Svakom", "Galaku", "Jissbon", Str.s(R.string.dev_019), "Lovense", "WeVibe", "We-Vibe", "MagicMotion")
     val hit = prefixes.firstOrNull { name.startsWith("$it ", true) }
     return if (hit != null) name.substring(hit.length).trim() else name
 }
@@ -665,9 +667,9 @@ private fun ModuleEditor(
                 .statusBarsPadding()
                 .padding(20.dp)
         ) {
-            Text("通道设置", style = MaterialTheme.typography.headlineMedium, color = Palette.Text)
+            Text(Str.s(R.string.dev_020), style = MaterialTheme.typography.headlineMedium, color = Palette.Text)
             Text(
-                if (known) "这个型号支持的通道已确定，按需要开关即可" else "没识别出型号，请按玩具实际功能勾选",
+                if (known) Str.s(R.string.dev_021) else Str.s(R.string.dev_022),
                 style = MaterialTheme.typography.bodyMedium,
                 color = Palette.TextFaint
             )
@@ -679,7 +681,7 @@ private fun ModuleEditor(
                         if (i > 0) VSpace(10.dp)
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
-                                spec.label,
+                                Str.data(spec.label),
                                 style = MaterialTheme.typography.titleMedium,
                                 color = Palette.Text,
                                 modifier = Modifier.weight(1f)
@@ -700,7 +702,7 @@ private fun ModuleEditor(
                 }
             } else {
                 GlassCard(Modifier.fillMaxWidth()) {
-                    Text("振动通道", style = MaterialTheme.typography.titleMedium, color = Palette.Text)
+                    Text(Str.s(R.string.dev_023), style = MaterialTheme.typography.titleMedium, color = Palette.Text)
                     VSpace(10.dp)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         (0..3).forEach { n ->
@@ -722,7 +724,7 @@ private fun ModuleEditor(
                                     .padding(horizontal = 16.dp, vertical = 9.dp)
                             ) {
                                 Text(
-                                    if (n == 0) "无" else "$n 个",
+                                    if (n == 0) Str.s(R.string.dev_024) else Str.s(R.string.x_count_unit, n),
                                     style = MaterialTheme.typography.labelLarge,
                                     color = if (selected) Palette.Violet else Palette.TextDim
                                 )
@@ -732,7 +734,7 @@ private fun ModuleEditor(
                     VSpace(14.dp)
                     DividerLine()
                     VSpace(10.dp)
-                    Text("其它通道", style = MaterialTheme.typography.titleMedium, color = Palette.Text)
+                    Text(Str.s(R.string.dev_025), style = MaterialTheme.typography.titleMedium, color = Palette.Text)
                     VSpace(4.dp)
                     listOf(
                         ModuleType.SUCTION, ModuleType.THRUST, ModuleType.ROTATE,
@@ -741,7 +743,7 @@ private fun ModuleEditor(
                     ).forEach { type ->
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
-                                type.cn,
+                                Str.data(type.cn),
                                 style = MaterialTheme.typography.labelLarge,
                                 color = Palette.TextDim,
                                 modifier = Modifier.weight(1f)
@@ -771,7 +773,7 @@ private fun ModuleEditor(
                         .padding(horizontal = 24.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text("取消", style = MaterialTheme.typography.labelLarge, color = Palette.TextDim)
+                    Text(Str.s(R.string.dev_004), style = MaterialTheme.typography.labelLarge, color = Palette.TextDim)
                 }
                 Box(
                     Modifier
@@ -786,14 +788,14 @@ private fun ModuleEditor(
                                 enabled.toList()
                             } else {
                                 val out = mutableListOf<ModuleSpec>()
-                                val labels = listOf("振动 A", "振动 B", "振动 C")
+                                val labels = listOf(Str.s(R.string.dev_026), Str.s(R.string.dev_027), Str.s(R.string.dev_028))
                                 repeat(vibeCount.value) { i ->
                                     out.add(ModuleSpec(ModuleType.VIBRATE, i, labels[i], 100))
                                 }
                                 var idx = 0
                                 extra.forEach { type ->
                                     out.add(
-                                        ModuleSpec(type, idx++, type.cn, if (type == ModuleType.ESTIM) 10 else 100)
+                                        ModuleSpec(type, idx++, Str.data(type.cn), if (type == ModuleType.ESTIM) 10 else 100)
                                     )
                                 }
                                 out
@@ -802,7 +804,7 @@ private fun ModuleEditor(
                         },
                     contentAlignment = Alignment.Center
                 ) {
-                    Text("保存", style = MaterialTheme.typography.labelLarge, color = Color.White)
+                    Text(Str.s(R.string.dev_029), style = MaterialTheme.typography.labelLarge, color = Color.White)
                 }
             }
         }

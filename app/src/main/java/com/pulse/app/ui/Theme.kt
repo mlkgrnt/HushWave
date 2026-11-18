@@ -1,5 +1,7 @@
 package com.pulse.app.ui
 
+import com.pulse.app.core.Str
+import com.pulse.app.R
 import android.content.Context
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme

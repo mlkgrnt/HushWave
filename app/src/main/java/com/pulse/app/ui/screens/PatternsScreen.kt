@@ -1,5 +1,7 @@
 package com.pulse.app.ui.screens
 
+import com.pulse.app.R
+import com.pulse.app.core.Str
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -140,14 +142,14 @@ fun PatternsScreen(vm: PulseViewModel) {
         item {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text("波形", style = MaterialTheme.typography.headlineLarge, color = Palette.Text)
+                    Text(Str.s(R.string.pat_000), style = MaterialTheme.typography.headlineLarge, color = Palette.Text)
                     Text(
-                        "选好通道，点一下曲线开始",
+                        Str.s(R.string.pat_001),
                         style = MaterialTheme.typography.bodyMedium,
                         color = Palette.TextFaint
                     )
                 }
-                Pill(if (play == null) "自动循环" else "播放中", Palette.Violet)
+                Pill(if (play == null) Str.s(R.string.pat_002) else Str.s(R.string.pat_003), Palette.Violet)
             }
             VSpace(16.dp)
         }
@@ -156,14 +158,14 @@ fun PatternsScreen(vm: PulseViewModel) {
             GlassCard(Modifier.fillMaxWidth(), padding = 15.dp) {
                 if (!canControl) {
                     Text(
-                        "先连接玩具，这里会列出它可以动的通道。",
+                        Str.s(R.string.pat_004),
                         style = MaterialTheme.typography.bodyMedium,
                         color = Palette.TextFaint
                     )
                 } else {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
-                            "作用于",
+                            Str.s(R.string.pat_005),
                             style = MaterialTheme.typography.labelSmall,
                             color = Palette.TextFaint
                         )
@@ -193,7 +195,7 @@ fun PatternsScreen(vm: PulseViewModel) {
                                         .padding(horizontal = 12.dp, vertical = 7.dp)
                                 ) {
                                     Text(
-                                        spec.label,
+                                        Str.data(spec.label),
                                         style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 0.sp),
                                         color = if (on) Palette.Violet else Palette.TextDim
                                     )
@@ -204,9 +206,9 @@ fun PatternsScreen(vm: PulseViewModel) {
                     VSpace(10.dp)
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
-                            Text("同步", style = MaterialTheme.typography.labelLarge, color = Palette.TextDim)
+                            Text(Str.s(R.string.pat_006), style = MaterialTheme.typography.labelLarge, color = Palette.TextDim)
                             Text(
-                                if (sync) "选中的通道一起动" else "按顺序错开，形成波浪",
+                                if (sync) Str.s(R.string.pat_007) else Str.s(R.string.pat_008),
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = Palette.TextFaint
                             )
@@ -235,10 +237,10 @@ fun PatternsScreen(vm: PulseViewModel) {
                 GlassCard(Modifier.fillMaxWidth(), glow = true) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
-                            Text("正在播放", style = MaterialTheme.typography.labelSmall, color = Palette.Cyan)
+                            Text(Str.s(R.string.pat_009), style = MaterialTheme.typography.labelSmall, color = Palette.Cyan)
                             VSpace(3.dp)
                             Text(
-                                p.pattern.name,
+                                Str.data(p.pattern.name),
                                 style = MaterialTheme.typography.headlineMedium,
                                 color = Palette.Text
                             )
@@ -271,7 +273,7 @@ fun PatternsScreen(vm: PulseViewModel) {
                     }
                     VSpace(10.dp)
                     Text(
-                        "${p.targetKeys.size} 个通道 · " + if (p.sync) "同步" else "波浪",
+                        Str.s(R.string.x_pattern_stagger, p.targetKeys.size, if (p.sync) Str.s(R.string.pat_006) else Str.s(R.string.pat_010)),
                         style = MaterialTheme.typography.bodyMedium,
                         color = Palette.TextFaint
                     )
@@ -284,7 +286,7 @@ fun PatternsScreen(vm: PulseViewModel) {
                     )
                     VSpace(14.dp)
                     GlowSlider(
-                        label = "整体幅度",
+                        label = Str.s(R.string.pat_011),
                         value = scale,
                         onChange = {
                             scale = it
@@ -298,7 +300,7 @@ fun PatternsScreen(vm: PulseViewModel) {
         }
 
         item {
-            SectionHeader("预设", "点一下直接播放")
+            SectionHeader(Str.s(R.string.pat_012), Str.s(R.string.pat_013))
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 presets.chunked(2).forEach { row ->
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -323,7 +325,7 @@ fun PatternsScreen(vm: PulseViewModel) {
 
         item {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                SectionHeader("我的波形", "${custom.size} 条", Modifier.weight(1f))
+                SectionHeader(Str.s(R.string.pat_014), Str.s(R.string.x_custom_count, custom.size), Modifier.weight(1f))
                 Box(
                     Modifier
                         .clip(RoundedCornerShape(12.dp))
@@ -335,14 +337,14 @@ fun PatternsScreen(vm: PulseViewModel) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Rounded.Edit, null, tint = Palette.Violet, modifier = Modifier.size(14.dp))
                         Spacer(Modifier.width(5.dp))
-                        Text("绘制", style = MaterialTheme.typography.labelSmall, color = Palette.Violet)
+                        Text(Str.s(R.string.pat_015), style = MaterialTheme.typography.labelSmall, color = Palette.Violet)
                     }
                 }
             }
             if (custom.isEmpty()) {
                 GlassCard(Modifier.fillMaxWidth()) {
                     Text(
-                        "还没有自定义波形。画出任意曲线，它会按你设定的时长循环播放。",
+                        Str.s(R.string.pat_016),
                         style = MaterialTheme.typography.bodyMedium,
                         color = Palette.TextFaint
                     )
@@ -360,7 +362,7 @@ fun PatternsScreen(vm: PulseViewModel) {
                             .clickable { editing = null; editorOpen = true },
                         contentAlignment = Alignment.Center
                     ) {
-                        Text("打开波形编辑器", style = MaterialTheme.typography.labelLarge, color = Color.White)
+                        Text(Str.s(R.string.pat_017), style = MaterialTheme.typography.labelLarge, color = Color.White)
                     }
                 }
             } else {
@@ -380,10 +382,10 @@ fun PatternsScreen(vm: PulseViewModel) {
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Column(Modifier.weight(1f)) {
-                                    Text(p.name, style = MaterialTheme.typography.titleMedium, color = Palette.Text)
+                                    Text(if (p.builtIn) Str.data(p.name) else p.name, style = MaterialTheme.typography.titleMedium, color = Palette.Text)
                                     VSpace(2.dp)
                                     Text(
-                                        "${p.durationMs / 1000f}s · ${p.points.size} 采样",
+                                        Str.s(R.string.x_pattern_meta, "%.1f".format(p.durationMs / 1000f), p.points.size),
                                         style = MaterialTheme.typography.labelSmall.copy(
                                             fontFamily = FontFamily.Monospace,
                                             letterSpacing = 0.sp
@@ -468,7 +470,7 @@ private fun PatternCard(
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                pattern.name,
+                if (pattern.builtIn) Str.data(pattern.name) else pattern.name,
                 style = MaterialTheme.typography.titleMedium,
                 color = if (active) Palette.Violet else Palette.Text,
                 modifier = Modifier.weight(1f)
@@ -489,7 +491,7 @@ private fun PatternCard(
             color = if (active) Palette.Violet else Palette.Cyan.copy(alpha = 0.75f)
         )
         VSpace(8.dp)
-        Text(pattern.tag, style = MaterialTheme.typography.labelSmall, color = Palette.TextFaint)
+        Text(Str.data(pattern.tag), style = MaterialTheme.typography.labelSmall, color = Palette.TextFaint)
     }
 }
 
@@ -521,7 +523,7 @@ private fun WaveEditorDialog(
         mutableStateListOf<WaveLayer>().apply { addAll(startLayers) }
     }
     var expanded by remember { mutableIntStateOf(0) }
-    var name by remember(initial) { mutableStateOf(initial?.name ?: "我的曲线") }
+    var name by remember(initial) { mutableStateOf(initial?.name ?: Str.s(R.string.pat_018)) }
     var duration by remember(initial) { mutableFloatStateOf((initial?.durationMs ?: 5000) / 1000f) }
 
     val durationMs = (duration * 1000).toInt()
@@ -532,8 +534,8 @@ private fun WaveEditorDialog(
     // 切标签时把默认名跟着换掉；编辑已有波形时保留它原来的名字
     LaunchedEffect(tab) {
         if (initial != null) return@LaunchedEffect
-        if (tab == 1 && name == "我的曲线") name = "我的波形"
-        if (tab == 0 && name == "我的波形") name = "我的曲线"
+        if (tab == 1 && name == Str.s(R.string.pat_018)) name = Str.s(R.string.x_default_wave)
+        if (tab == 0 && name == Str.s(R.string.x_default_wave)) name = Str.s(R.string.pat_018)
     }
 
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
@@ -547,15 +549,15 @@ private fun WaveEditorDialog(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text(
-                        if (initial != null) "编辑波形" else "波形编辑器",
+                        if (initial != null) Str.s(R.string.pat_019) else Str.s(R.string.pat_020),
                         style = MaterialTheme.typography.headlineMedium,
                         color = Palette.Text
                     )
                     Text(
                         when {
-                            initial != null -> "改完保存会覆盖这一条，不会多出一条"
-                            tab == 0 -> "手指在格子里拖动，横轴是时间，纵轴是强度"
-                            else -> "几个基础函数叠起来，调幅度、频率、相位"
+                            initial != null -> Str.s(R.string.pat_021)
+                            tab == 0 -> Str.s(R.string.pat_022)
+                            else -> Str.s(R.string.pat_023)
                         },
                         style = MaterialTheme.typography.bodyMedium,
                         color = Palette.TextFaint
@@ -576,8 +578,8 @@ private fun WaveEditorDialog(
             VSpace(14.dp)
 
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                EditorTab("手绘", tab == 0, Modifier.weight(1f)) { tab = 0 }
-                EditorTab("函数", tab == 1, Modifier.weight(1f)) { tab = 1 }
+                EditorTab(Str.s(R.string.pat_024), tab == 0, Modifier.weight(1f)) { tab = 0 }
+                EditorTab(Str.s(R.string.pat_025), tab == 1, Modifier.weight(1f)) { tab = 1 }
             }
 
             VSpace(14.dp)
@@ -624,7 +626,7 @@ private fun WaveEditorDialog(
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
-                                "＋ 加一层（最多 ${WaveMath.MAX_LAYERS} 层）",
+                                Str.s(R.string.x_add_layer, WaveMath.MAX_LAYERS),
                                 style = MaterialTheme.typography.labelLarge,
                                 color = Palette.TextDim
                             )
@@ -633,7 +635,7 @@ private fun WaveEditorDialog(
                     }
                     if (tooFast) {
                         Text(
-                            "超过 3 Hz：玩具每秒只收到 10 帧，再高就是一片抖动，听不出起伏。",
+                            Str.s(R.string.pat_026),
                             style = MaterialTheme.typography.labelSmall,
                             color = Palette.Rose.copy(alpha = 0.85f)
                         )
@@ -641,14 +643,14 @@ private fun WaveEditorDialog(
                     }
                     if (seam) {
                         Text(
-                            "周期数不是整数，循环回到起点时会跳一下。",
+                            Str.s(R.string.pat_027),
                             style = MaterialTheme.typography.labelSmall,
                             color = Palette.TextFaint
                         )
                         VSpace(6.dp)
                     }
                     Text(
-                        "多层叠加超过 1.0 时会按峰值整体缩回，不会顶在满速。",
+                        Str.s(R.string.pat_028),
                         style = MaterialTheme.typography.labelSmall,
                         color = Palette.TextFaint
                     )
@@ -673,7 +675,7 @@ private fun WaveEditorDialog(
                             .padding(horizontal = 22.dp),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text("清空", style = MaterialTheme.typography.labelLarge, color = Palette.TextDim)
+                        Text(Str.s(R.string.pat_029), style = MaterialTheme.typography.labelLarge, color = Palette.TextDim)
                     }
                 }
                 val ready = tab == 1 || points.size >= 2
@@ -690,14 +692,14 @@ private fun WaveEditorDialog(
                         .clickable(enabled = ready) {
                             val p = if (tab == 0) {
                                 vm.saveCustom(
-                                    name.ifBlank { "我的曲线" },
+                                    name.ifBlank { Str.s(R.string.pat_018) },
                                     durationMs,
                                     points.toList(),
                                     id = initial?.id
                                 )
                             } else {
                                 vm.saveSynthesis(
-                                    name.ifBlank { "我的波形" },
+                                    name.ifBlank { Str.s(R.string.x_default_wave) },
                                     durationMs,
                                     layers.toList(),
                                     id = initial?.id
@@ -709,7 +711,7 @@ private fun WaveEditorDialog(
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        if (initial != null) "保存修改" else "保存并播放",
+                        if (initial != null) Str.s(R.string.pat_030) else Str.s(R.string.pat_031),
                         style = MaterialTheme.typography.labelLarge,
                         color = if (ready) Color.White else Palette.TextFaint
                     )
@@ -718,9 +720,9 @@ private fun WaveEditorDialog(
             VSpace(10.dp)
             Text(
                 when {
-                    initial != null -> "改完点「保存修改」会覆盖原来那条波形。"
-                    tab == 0 -> "画得越密越顺滑；只有 1 个点无法生成曲线。"
-                    else -> "第 1 层是基底，后面每层按自己的运算叠上去。"
+                    initial != null -> Str.s(R.string.pat_032)
+                    tab == 0 -> Str.s(R.string.pat_033)
+                    else -> Str.s(R.string.pat_034)
                 },
                 style = MaterialTheme.typography.labelSmall,
                 color = Palette.TextFaint
@@ -762,7 +764,7 @@ private fun NameField(value: String, onChange: (String) -> Unit) {
     OutlinedTextField(
         value = value,
         onValueChange = onChange,
-        label = { Text("名称") },
+        label = { Text(Str.s(R.string.pat_035)) },
         singleLine = true,
         modifier = Modifier.fillMaxWidth(),
         colors = OutlinedTextFieldDefaults.colors(
@@ -779,7 +781,7 @@ private fun NameField(value: String, onChange: (String) -> Unit) {
 @Composable
 private fun DurationSlider(duration: Float, onChange: (Float) -> Unit) {
     GlowSlider(
-        label = "循环时长",
+        label = Str.s(R.string.pat_036),
         value = (duration - 1f) / 19f,
         onChange = { onChange(1f + it * 19f) },
         accent = Palette.Cyan,
@@ -884,7 +886,7 @@ private fun DrawPad(points: MutableList<Pair<Float, Float>>, modifier: Modifier 
         }
         if (points.isEmpty()) {
             Text(
-                "在这里画",
+                Str.s(R.string.pat_037),
                 style = MaterialTheme.typography.bodyMedium,
                 color = Palette.TextFaint,
                 modifier = Modifier.align(Alignment.Center)
@@ -971,23 +973,23 @@ private fun LayerCard(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                if (index == 0) "基底" else "层 ${index + 1}",
+                if (index == 0) Str.s(R.string.pat_038) else Str.s(R.string.x_layer_n, index + 1),
                 style = MaterialTheme.typography.labelSmall,
                 color = Palette.TextFaint
             )
             Spacer(Modifier.width(9.dp))
             Text(
-                "${layer.primitive.label} ${fmtCycles(layer.cycles)}×",
+                "${Str.data(layer.primitive.label)} ${fmtCycles(layer.cycles)}×",
                 style = MaterialTheme.typography.titleMedium,
                 color = Palette.Text
             )
             Spacer(Modifier.weight(1f))
             if (index > 0) {
-                Pill(layer.op.label, Palette.Violet)
+                Pill(Str.data(layer.op.label), Palette.Violet)
                 Spacer(Modifier.width(8.dp))
             }
             Text(
-                if (expanded) "收起" else "调整",
+                if (expanded) Str.s(R.string.pat_039) else Str.s(R.string.pat_040),
                 style = MaterialTheme.typography.labelSmall,
                 color = Palette.TextDim
             )
@@ -1019,7 +1021,7 @@ private fun LayerCard(
                         .padding(horizontal = 12.dp, vertical = 7.dp)
                 ) {
                     Text(
-                        p.label,
+                        Str.data(p.label),
                         style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 0.sp),
                         color = if (on) Palette.Violet else Palette.TextDim
                     )
@@ -1052,7 +1054,7 @@ private fun LayerCard(
                             .padding(horizontal = 12.dp, vertical = 7.dp)
                     ) {
                         Text(
-                            op.label,
+                            Str.data(op.label),
                             style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 0.sp),
                             color = if (on) Palette.Cyan else Palette.TextDim
                         )
@@ -1063,7 +1065,7 @@ private fun LayerCard(
 
         VSpace(14.dp)
         GlowSlider(
-            label = "幅度",
+            label = Str.s(R.string.pat_041),
             value = layer.amplitude,
             onChange = { onChange(layer.copy(amplitude = it)) },
             accent = Palette.Violet,
@@ -1073,7 +1075,7 @@ private fun LayerCard(
         if (layer.primitive.periodic) {
             VSpace(10.dp)
             GlowSlider(
-                label = "每循环起伏",
+                label = Str.s(R.string.pat_042),
                 value = (layer.cycles - WaveMath.MIN_CYCLES) /
                     (WaveMath.MAX_CYCLES - WaveMath.MIN_CYCLES),
                 onChange = { v ->
@@ -1089,7 +1091,7 @@ private fun LayerCard(
 
         VSpace(10.dp)
         GlowSlider(
-            label = "相位",
+            label = Str.s(R.string.pat_043),
             value = layer.phase,
             onChange = { onChange(layer.copy(phase = it)) },
             accent = Palette.Rose,
@@ -1104,7 +1106,7 @@ private fun LayerCard(
                     .padding(vertical = 4.dp)
             ) {
                 Text(
-                    "删除这一层",
+                    Str.s(R.string.pat_044),
                     style = MaterialTheme.typography.labelSmall,
                     color = Palette.Rose
                 )

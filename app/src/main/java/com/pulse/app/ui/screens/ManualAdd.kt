@@ -1,5 +1,7 @@
 package com.pulse.app.ui.screens
 
+import com.pulse.app.R
+import com.pulse.app.core.Str
 import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
@@ -131,15 +133,15 @@ fun ManualAddDialog(vm: PulseViewModel, onDismiss: () -> Unit) {
                 }
                 Column(Modifier.weight(1f)) {
                     Text(
-                        if (selected == null) "手动添加设备" else "选择设备类型",
+                        if (selected == null) Str.s(R.string.man_000) else Str.s(R.string.man_001),
                         style = MaterialTheme.typography.headlineMedium,
                         color = Palette.Text
                     )
                     Text(
                         if (selected == null) {
-                            "这里全量扫描，只列没认出来的设备；首页只扫已支持的玩具"
+                            Str.s(R.string.man_002)
                         } else {
-                            "「${selected!!.name}」不在已知型号里，选一个品牌试试"
+                            Str.s(R.string.x_unknown_selected, selected!!.name)
                         },
                         style = MaterialTheme.typography.bodyMedium,
                         color = Palette.TextFaint
@@ -192,7 +194,7 @@ fun ManualAddDialog(vm: PulseViewModel, onDismiss: () -> Unit) {
                             )
                             Spacer(Modifier.width(8.dp))
                             Text(
-                                if (scanning) "停止扫描" else "扫描设备",
+                                if (scanning) Str.s(R.string.man_003) else Str.s(R.string.man_004),
                                 style = MaterialTheme.typography.titleMedium,
                                 color = Color.White
                             )
@@ -203,7 +205,7 @@ fun ManualAddDialog(vm: PulseViewModel, onDismiss: () -> Unit) {
 
                 if (devices.isEmpty()) {
                     Text(
-                        "附近没有待指定的设备。已识别的玩具会直接出现在首页「附近设备」里。",
+                        Str.s(R.string.man_005),
                         style = MaterialTheme.typography.bodyMedium,
                         color = Palette.TextFaint
                     )
@@ -238,7 +240,7 @@ fun ManualAddDialog(vm: PulseViewModel, onDismiss: () -> Unit) {
                             if (item.match != null) {
                                 val match = item.match!!
                                 Pill(
-                                    if (match.weak) "可能是 ${match.protocol.brand}" else match.protocol.brand,
+                                    if (match.weak) Str.s(R.string.x_maybe_brand, Str.data(match.protocol.brand)) else Str.data(match.protocol.brand),
                                     if (match.weak) Palette.TextDim else Palette.Violet
                                 )
                                 Spacer(Modifier.width(6.dp))
@@ -285,7 +287,7 @@ fun ManualAddDialog(vm: PulseViewModel, onDismiss: () -> Unit) {
                                         color = Palette.Text
                                     )
                                     Text(
-                                        "${p.models.size} 个型号 · ${p.defaults.size} 个通道",
+                                        Str.s(R.string.x_models_channels, p.models.size, p.defaults.size),
                                         style = MaterialTheme.typography.bodyMedium,
                                         color = Palette.TextFaint
                                     )
@@ -314,8 +316,8 @@ private fun friendlyProtocolName(p: ProtocolSpec): String {
         p.id == "wevibe-8bit" -> "We-Vibe"
         p.id == "kiiroo-v21" -> "Kiiroo Pearl / Cliona"
         p.id == "satisfyer" -> "Satisfyer"
-        p.brand == "Svakom" && v.isNotEmpty() -> "Svakom（第 $v 代）"
-        p.brand == "MagicMotion" -> "MagicMotion（第 $v 代）"
+        p.brand == "Svakom" && v.isNotEmpty() -> Str.s(R.string.x_svakom_gen, v)
+        p.brand == "MagicMotion" -> Str.s(R.string.x_magicmotion_gen, v)
         p.brand == "Svakom" -> "Svakom"
         else -> p.brand
     }
