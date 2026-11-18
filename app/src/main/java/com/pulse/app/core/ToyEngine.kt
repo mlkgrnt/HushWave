@@ -49,6 +49,9 @@ class ToyEngine(private val ble: BleController) {
     private var lastDispatch = 0L
     private var pending = false
 
+    /** 脉冲期间独占这些通道，其它来源的写入会被丢弃 */
+    private val pulseHold = PulseHold()
+
     val energy: Float
         get() {
             val vibes = _values.value.filterKeys { !it.startsWith(ModuleType.ESTIM_FREQ.name) }
@@ -74,6 +77,7 @@ class ToyEngine(private val ble: BleController) {
         _values.value = init
         _masterActive.value = false
         _masterValue.value = 0f
+        pulseHold.clear()
         val ka = max(protocol?.keepAliveMs ?: 0L, driver.keepAliveMs)
         ble.updateKeepAlive(ka)
         if (modules.isNotEmpty()) dispatch(force = true)
@@ -85,6 +89,7 @@ class ToyEngine(private val ble: BleController) {
     }
 
     fun set(key: String, value: Float) {
+        if (!pulseHold.allows(key, System.currentTimeMillis())) return
         val next = _values.value.toMutableMap()
         next[key] = value.coerceIn(0f, 1f)
         _values.value = next
@@ -93,8 +98,11 @@ class ToyEngine(private val ble: BleController) {
     }
 
     fun setMany(map: Map<String, Float>) {
+        val now = System.currentTimeMillis()
+        val allowed = map.filterKeys { pulseHold.allows(it, now) }
+        if (allowed.isEmpty()) return
         val next = _values.value.toMutableMap()
-        map.forEach { (k, v) -> if (next.containsKey(k)) next[k] = v.coerceIn(0f, 1f) }
+        allowed.forEach { (k, v) -> if (next.containsKey(k)) next[k] = v.coerceIn(0f, 1f) }
         _values.value = next
         _masterActive.value = false
         dispatch()
@@ -102,9 +110,14 @@ class ToyEngine(private val ble: BleController) {
 
     /** 总强度：一次推所有通道（频率类参数除外） */
     fun setMaster(value: Float) {
+        val now = System.currentTimeMillis()
         val v = value.coerceIn(0f, 1f)
         val next = _values.value.mapValues { (k, old) ->
-            if (k.startsWith(ModuleType.ESTIM_FREQ.name)) old else v
+            when {
+                k.startsWith(ModuleType.ESTIM_FREQ.name) -> old
+                !pulseHold.allows(k, now) -> old
+                else -> v
+            }
         }
         _values.value = next
         _masterValue.value = v
@@ -113,6 +126,7 @@ class ToyEngine(private val ble: BleController) {
     }
 
     fun stopAll() {
+        pulseHold.clear()
         _values.value = _values.value.mapValues { 0f }
         _masterActive.value = false
         _masterValue.value = 0f
@@ -120,23 +134,35 @@ class ToyEngine(private val ble: BleController) {
         dispatch(force = true)
     }
 
-    fun pulse(key: String, level: Float = 1f, ms: Long = 380) {
-        val before = _values.value[key] ?: 0f
-        set(key, level)
+    fun pulse(key: String, level: Float = 1f, ms: Long = 380) =
+        pulseMany(listOf(key), level, ms)
+
+    /**
+     * 脉冲：独占这些通道 [ms] 毫秒，期间摇一摇 / 波形 / 音乐 / 滑杆都写不进来。
+     * 已经在脉冲中的通道会忽略这次点击——否则第二次会把恢复基线记成 1.0，回落时卡在最大档。
+     */
+    fun pulseMany(keys: List<String>, level: Float = 1f, ms: Long = 380) {
+        if (keys.isEmpty()) return
+        val fresh = pulseHold.begin(keys, System.currentTimeMillis(), ms) {
+            _values.value[it] ?: 0f
+        }
+        if (fresh.isEmpty()) return
+        // 首帧强制下发，避免被 100ms 节流吞掉
+        apply(fresh.associateWith { level }, force = true)
         scope.launch {
-            delay(ms)
-            set(key, before)
+            delay(ms + 20)
+            val back = pulseHold.expired(System.currentTimeMillis())
+            if (back.isNotEmpty()) apply(back)
         }
     }
 
-    fun pulseMany(keys: List<String>, level: Float = 1f, ms: Long = 380) {
-        if (keys.isEmpty()) return
-        val before = keys.associateWith { _values.value[it] ?: 0f }
-        setMany(keys.associateWith { level })
-        scope.launch {
-            delay(ms)
-            setMany(before)
-        }
+    /** 内部写值：绕过脉冲独占，只有脉冲本身和到期恢复会走这里 */
+    private fun apply(map: Map<String, Float>, force: Boolean = false) {
+        val next = _values.value.toMutableMap()
+        map.forEach { (k, v) -> if (next.containsKey(k)) next[k] = v.coerceIn(0f, 1f) }
+        _values.value = next
+        _masterActive.value = false
+        dispatch(force = force)
     }
 
     fun primaryKey(): String? =
